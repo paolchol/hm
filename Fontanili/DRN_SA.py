@@ -48,12 +48,13 @@ drn.layer = 0
 
 # Create and load the model class (only useful because it's needed by ModflowDrn class)
 # this can be replaced by loading the actual model .nam file (not needed though)
-modelpth = os.path.join(cwd_model, 'drain_model_test') #path to model
-mf = flopy.modflow.Modflow(
-    "busca_drain",
+mf = flopy.modflow.Modflow.load(
+    os.path.join(cwd_model, 'drain_model_test', 'busca_drain.nam'),
     model_ws = os.path.join(cwd_model, 'drain_model_test'),
-    exe_name = "mf2005",
-)
+    exe_name='MF2005',
+    version = 'mf2005',
+    verbose = False
+    )
 
 # Define limits of hydraulic conductivity range and number of iterations
 ki = 0.01
