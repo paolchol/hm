@@ -147,7 +147,7 @@ end = datetime.datetime.now()
 
 print('Runs terminated')
 print('Number of runs: ', n)
-print('Elapsed time (s): ', (start-end).seconds)
+print('Elapsed time (s): ', f'{(end-start).seconds}.{round((end-start).microseconds*(10**-6),2)}')
 
 #%% Save to dataframe and export
 
