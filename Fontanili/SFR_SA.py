@@ -15,8 +15,6 @@ Script to run multiple instances of a MODFLOW model simulating a lowland spring 
 # Import necessary packages
 import datetime
 import flopy
-import flopy.utils.binaryfile as bf
-import glob
 import numpy as np
 import os
 import pandas as pd
@@ -103,7 +101,7 @@ segment_data.columns = [x.lower() for x in segment_data.columns]
 segment_data = segment_data.loc[:,:].to_records(index = False)
 segment_data = {0: segment_data}
 
-# Generate the sfr package through flopy
+# Generate the SFR package through flopy
 unit_number = 27 # define this based on the model
 
 m = flopy.modflow.Modflow(model_name, model_ws = model_ws)
@@ -137,10 +135,10 @@ reach = 72
 segment = 1
 
 #%% Loop
-'''
-START OF THE LOOP
-'''
 
+'''
+START OF LOOP
+'''
 start = datetime.datetime.now()
 for i in range(n):
     # Change hydraulic conductivity and assign to sfr package
@@ -153,7 +151,8 @@ for i in range(n):
     success, buff = flopy.mbase.run_model(
                 exe_name = os.path.join(model_ws, 'MF2005.exe'),
                 namefile = f'{model_name}.nam',
-                model_ws = model_ws
+                model_ws = model_ws,
+                silent = False #False to test the code, then switch to True
                 )
     if not success:
         raise Exception("MODFLOW did not terminate normally.")
@@ -173,4 +172,4 @@ print('Elapsed time (s): ', (start-end).seconds)
 #%% Save to dataframe and export
 
 df_results = pd.DataFrame({'k_value': inputs, 'sfr_results': outputs})
-df_results.to_excel(os.path.join(model_ws,'sfr_results.xlsx'))
+df_results.to_excel(os.path.join(model_ws, 'sfr_results.xlsx'))
