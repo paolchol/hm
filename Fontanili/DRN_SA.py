@@ -1,5 +1,11 @@
 #%% Description
 
+"""
+ERROR:
+the DRAIN results get equal to 0 in each
+cell: fix this
+"""
+
 '''
 DRN_SA
 Script to run multiple instances of a MODFLOW model simulating a lowland spring using the DRN package
