@@ -157,7 +157,7 @@ for i in range(n):
     if not success:
         raise Exception("MODFLOW did not terminate normally.")
     # Load the streamflow.dat file and extract the searched flow
-    f = os.path.join(model_ws, 'busca_sfr2_streamflow.dat')
+    f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
     df = load_streamflow_dat(f)
     flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
     # Append k and flow

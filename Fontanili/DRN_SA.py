@@ -66,8 +66,8 @@ def load_drn_file(path):
     df.reset_index(inplace=True, drop = True)
 
     # assign the correct dtypes to the functions
-    df = change_type(df, ['layer', 'row', 'column'], 'int')
-    df = change_type(df, ['stage', 'conductance', 'node'], 'float')    
+    df = change_type(df, ['layer', 'row', 'column', 'node'], 'int')
+    df = change_type(df, ['stage', 'conductance'], 'float')    
     return df
 
 #%% Load DRN characteristics
@@ -88,14 +88,24 @@ drn.row = drn.row - 1
 drn.column = drn.column - 1
 
 # Generate the DRN package through flopy
-m = flopy.modflow.Modflow(model_name, model_ws=model_ws)
+# m = flopy.modflow.Modflow(model_name, model_ws=model_ws)
 ipakcb = 50 #code for cell-by-cell flow data storage
-drain = flopy.modflow.ModflowDrn(
-    m,
-    ipakcb = ipakcb,
-    stress_period_data = {0: drn.iloc[:, :-1].to_numpy().tolist()},
-    filenames = os.path.join(model_ws, 'busca_drain.drn')
+# drain = flopy.modflow.ModflowDrn(
+#     m,
+#     ipakcb = ipakcb,
+#     stress_period_data = {0: drn.iloc[:, :-1].to_numpy().tolist()},
+#     filenames = os.path.join(model_ws, f'{model_name}.drn')
+# )
+
+mf = flopy.modflow.Modflow.load(
+    os.path.join(model_ws, f'{model_name}.nam'),
+    model_ws = model_ws,
+    exe_name='MF2005',
+    version = 'mf2005',
+    verbose = False
 )
+mf.drn.ipakcb = ipakcb
+mf.drn.filenames = os.path.join(model_ws, f'{model_name}.drn')
 
 #%% Define loop parameters
 
@@ -126,16 +136,19 @@ for i in range(n):
     stress_period_data = {0: drn.iloc[:, :-1].to_numpy().tolist()} #remove node column, not needed nor supported by flopy's ModflowDrn class
 
     # Modify the drn package' stress period data
-    drain.stress_period_data = stress_period_data
-    drain.write_file(check = False)
+    mf.drn.stress_period_data = stress_period_data
+    mf.drn.write_file(check = False)
     
     # Run the model
-    success, buff = flopy.mbase.run_model(
-        exe_name = os.path.join(model_ws, 'MF2005.exe'),
-        namefile = f'{model_name}.nam',
-        model_ws = model_ws,
-        silent = False  #False to test the code, then switch to True
-        )
+    # success, buff = flopy.mbase.run_model(
+    #     exe_name = os.path.join(model_ws, 'MF2005.exe'),
+    #     namefile = f'{model_name}.nam',
+    #     model_ws = model_ws,
+    #     silent = False  #False to test the code, then switch to True
+    #     )
+    # if not success:
+    #     raise Exception("MODFLOW did not terminate normally.")
+    success, buff = mf.run_model(silent=True) #False to test the code, then switch to True
     if not success:
         raise Exception("MODFLOW did not terminate normally.")
     
