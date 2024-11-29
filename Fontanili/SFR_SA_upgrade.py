@@ -127,9 +127,11 @@ sfr = flopy.modflow.ModflowSfr2(
 # nSEG
 sfr_type = '2SEG'
 
-# Define limits of hydraulic conductivity range and number of iterations
-ki = 0.01
-kf = 0.000001
+# Define hydraulic conductivity parameter vector
+
+kt = [0.001, 0.003] # t is "testa", the "head" of the fontanile
+ka = [0.003, 0.005] #
+
 n = 10 #10 to test the code, then switch to 100
 step = np.linspace(ki,kf,n)
 inputs = []
