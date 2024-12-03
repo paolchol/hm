@@ -47,6 +47,7 @@ def load_streamflow_dat(f, nsp = 1):
     nsp: int, optional
         number of stress periods of the simulation. 1 works also with stationary models.
         Default is 1
+        The option is not yet developed
     
     Returns:
     df: pandas.DataFrame
@@ -71,13 +72,14 @@ def load_streamflow_dat(f, nsp = 1):
             pass
     return df
 
-#%% Load SFR characteristics
+#%% # Define needed paths and model name
 
-# Define needed paths and model name
 cwd = os.getcwd()
 sfr_data = os.path.join(cwd, 'test_files', 'busca_sfr2_sfr_data.xlsx') # SFR characteristics
 model_ws = os.path.join(cwd, 'test_files', 'sfr_model_test') # Model working directory
 model_name = 'busca_sfr2'
+
+#%% Load SFR characteristics
 
 # Load general parameters (item 1)
 it1 = pd.read_excel(sfr_data, sheet_name = 'ITEM1')
@@ -141,8 +143,8 @@ seg_a = 1 # number of segments
 #   if sfr_type == 'nSEG', a list containing n lists with the values to test
 
 k_dict = {
-    'kt': [0.001, 0.003], 
-    'ka': [0.003, 0.005]
+    'kt': [0.0001, 0.0003], 
+    'ka': [0.0003, 0.0005]
 }
 
 # Define slope parameter dictionary
@@ -155,8 +157,8 @@ k_dict = {
 #   if sfr_type == 'nSEG', a list containing n lists with the values to test
 
 s_dict = {
-    'st': [0.0001, 0.00003, 0.00001],
-    'sa': [0.0003, 0.00005, 0.00001]
+    'st': [0.0001, 0.00003],
+    'sa': [0.0003, 0.00005]
 }
 
 # Define reach and segment from where to get the reach flow
@@ -167,21 +169,14 @@ segment = 1
 flow_target = 0.0506  # m3/s
 depth_target = 0.40   # m
 
+# Set the print of model runs to silent
+silent = True
+
 #%% Loop
 
 '''
 START OF LOOP
-'''
-
-def run_model(model_ws, model_name):
-    success, buff = flopy.mbase.run_model(
-                            exe_name = os.path.join(model_ws, 'MF2005.exe'),
-                            namefile = f'{model_name}.nam',
-                            model_ws = model_ws,
-                            silent = False #False to test the code, then switch to True
-                            )
-    if not success:
-                raise Exception("MODFLOW did not terminate normally.")
+'''  
 
 if sfr_type == '2SEG':
 
@@ -206,59 +201,67 @@ if sfr_type == '2SEG':
                 for sa in s_dict['sa']:
                     tool.loc[tool.iseg != seg_t, 'slope'] = sa
 
-                # Write the new .sfr file transforming tool to reach_data
-                reach_data = tool.loc[:,:].to_records(index = False)
-                sfr.reach_data = reach_data
-                sfr.write_file()
-                # Run the model
-                m_code = f'M{i}'
-                run_model(model_ws, model_name)
-    
-                # Load the streamflow.dat file
-                f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
-                df = load_streamflow_dat(f)
+                    # Write the new .sfr file transforming tool to reach_data
+                    reach_data = tool.loc[:,:].to_records(index = False)
+                    sfr.reach_data = reach_data
+                    sfr.write_file()
+                    # Run the model
+                    m_code = f'M{i}'
+                    success, buff = flopy.mbase.run_model(
+                                exe_name = os.path.join(model_ws, 'MF2005.exe'),
+                                namefile = f'{model_name}.nam',
+                                model_ws = model_ws,
+                                silent = silent #False to test the code, then switch to True
+                                )
+                    if not success:
+                        print(m_code, kt, ka, st, sa)
+                        raise Exception("MODFLOW did not terminate normally.")
+        
+                    # Load the streamflow.dat file
+                    f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
+                    df = load_streamflow_dat(f)
 
-                # Extract flow and depth in the target reach
-                f = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
-                d = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
-                
-                
-                # Update the output structures
-                params = [m_code, kt, ka, st, sa, f, d]
-                params_save.append(params)
-                # Extract flow and depth in all reaches and add them to the output structures
-                flow_save = pd.concat([flow_save, df.flow_out_reach], axis=1)
-                depth_save = pd.concat([depth_save, df.stream_depth], axis=1)
-                
-                # Save the results after 100 runs
-                if i % 100 == 0:
-                    params_save = pd.DataFrame(params_save, columns = ['m_code', 'kt','ka', 'st', 'sa', 'flow_out_reach', 'stream_depth'])
-                    # Add columns to params_save
-                    params_save['flow_diff'] = flow_target - params_save.flow_out_reach
-                    params_save['depth_diff'] = depth_target - params_save.stream_depth
-
-                    # Save as CSV
-                    params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i}.csv'), index = False)
-                    flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_M{i}.csv'), index = False)
-                    depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i}.csv'), index = False)
+                    # Extract flow and depth in the target reach
+                    f = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
+                    d = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
                     
-                    # Clear the output structures
-                    del params_save, flow_save, depth_save
-                    params_save = []
-                    flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
+                    # Update the output structures
+                    params = [m_code, kt, ka, st, sa, f, d]
+                    params_save.append(params)
+                    # Extract flow and depth in all reaches and add them to the output structures
+                    flow_save = pd.concat([flow_save, df.flow_out_reach], axis=1)
+                    depth_save = pd.concat([depth_save, df.stream_depth], axis=1)
                     
-                # Progress the counter to generate the model code
-                i += 1
+                    # Save the results after 100 runs
+                    if i % 100 == 0:
+                        params_save = pd.DataFrame(params_save, columns = ['m_code', 'kt','ka', 'st', 'sa', 'flow_out_reach', 'stream_depth'])
+                        # Add columns to params_save
+                        params_save['flow_diff'] = flow_target - params_save.flow_out_reach
+                        params_save['depth_diff'] = depth_target - params_save.stream_depth
 
-        # Save the results
-        params_save = pd.DataFrame(params_save, columns = ['m_code', 'kt','ka', 'st', 'sa', 'flow_out_reach', 'stream_depth'])
-        # Add columns to params_save
-        params_save['flow_diff'] = flow_target - params_save.flow_out_reach
-        params_save['depth_diff'] = depth_target - params_save.stream_depth
-        # Save as CSV
-        params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i}.csv'), index = False)
-        flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_M{i}.csv'), index = False)
-        depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i}.csv'), index = False)
+                        # Save as CSV
+                        params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i}.csv'), index = False)
+                        flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_M{i}.csv'), index = False)
+                        depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i}.csv'), index = False)
+                        
+                        # Clear the output structures
+                        del params_save, flow_save, depth_save
+
+                        params_save = []
+                        flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
+                        
+                    # Progress the counter to generate the model code
+                    i += 1
+
+    # Save the results
+    params_save = pd.DataFrame(params_save, columns = ['m_code', 'kt','ka', 'st', 'sa', 'flow_out_reach', 'stream_depth'])
+    # Add columns to params_save
+    params_save['flow_diff'] = flow_target - params_save.flow_out_reach
+    params_save['depth_diff'] = depth_target - params_save.stream_depth
+    # Save as CSV
+    params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i}.csv'), index = False)
+    flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_M{i}.csv'), index = False)
+    depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i}.csv'), index = False)
 
     end = datetime.datetime.now()
 
@@ -270,4 +273,4 @@ else:
 
 print('Runs terminated')
 print('Number of runs: ', n)
-print('Elapsed time (s): ', f'{(end-start).seconds}.{round((end-start).microseconds*(10**-6),2)}')
+print('Elapsed time (s): ', f'{(end-start).seconds + round((end-start).microseconds*(10**-6),2)}')
