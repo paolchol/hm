@@ -230,7 +230,7 @@ def run(i, j, tool, model_ws, model_name, params, params_save,
 
         params_save = []
         flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
-        j += 1
+        j += 100
     
     return params_save, flow_save, depth_save, j
 
@@ -259,7 +259,7 @@ if sfr_type == '2SEG':
     print(f'{n} runs will be performed')
 
     # Initialize needed variables
-    i, j = 1, 0
+    i, j = 1, 1
     params_save = []
     flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
 
@@ -300,7 +300,7 @@ elif sfr_type == 'nSEG':
     print(f'{n} runs will be performed')
 
     # Initialize needed variables
-    i, j = 1, 0
+    i, j = 1, 1
     params_save = []
     flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
 
@@ -308,30 +308,41 @@ elif sfr_type == 'nSEG':
 
     for kt in k_dict['kt']:
         # Transform reach_data to a pandas.DataFrame
-        tool = pd.DataFrame(reach_data)
+        tool = pd.DataFrame(reach_data).copy()
         # Change hydraulic conductivity and slope in the segments
         tool.loc[tool.iseg == seg_t, 'strhc1'] = kt
         for ka in k_dict['ka']:
             tool.loc[tool.iseg != seg_t, 'strhc1'] = ka
             for st in s_dict['st']:
                 tool.loc[tool.iseg == seg_t, 'slope'] = st
+                
+                #in questo momento stiamo cambiando solo un segmento
+                #trovare un modo per cambiare anche i successivi segmenti
                 for seg in range(1, seg_a+1):
+
                     for sa in s_dict['sa'][seg-1]:
+                        print(f'M{i}', seg, sa)
                         tool.loc[tool.iseg == seg+seg_t, 'slope'] = sa
                         
-                        sas = [tool.groupby('iseg').mean().slope.to_list()] # slopes assigned to the segments
-                        params = [f'M{i}', kt, ka, st] + sas
-                        params_save, flow_save, depth_save, j = run(i, j, tool, model_ws, model_name,
-                                                                params, params_save, flow_save, depth_save,
-                                                                flow_target, depth_target, columns)
+                        #aggiungere for sui segmenti successivi
+                        # while g < seg_a:
+                        #     bla bla
+                        # for sa in s_dict['sa'][]
+
+
+                        # sas = tool.groupby('iseg').mean().slope.to_list() # slopes assigned to the segments
+                        # params = [f'M{i}', kt, ka] + sas
+                        # params_save, flow_save, depth_save, j = run(i, j, tool, model_ws, model_name,
+                        #                                         params, params_save, flow_save, depth_save,
+                        #                                         flow_target, depth_target, columns)
                             
                         # Progress the counter to generate the model code
                         i += 1
 
     # Save the results
-    reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
-    save(i, j, columns, params_save, flow_target,
-            depth_target, flow_save, depth_save, reach_data, model_ws)
+    # reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
+    # save(i, j, columns, params_save, flow_target,
+    #         depth_target, flow_save, depth_save, reach_data, model_ws)
 
     end = datetime.datetime.now()
 else:
