@@ -60,12 +60,12 @@ def load_streamflow_dat(f, nsp = 1):
                 r = list(filter(None, row.split(' ')))
                 df = pd.concat([df, pd.DataFrame(r).transpose()])
             df.columns = ['l', 'r', 'c', 'iseg', 'ireach', 'flow_into_reach', 'flow_to_aquifer', 'flow_out_reach', 'overlnd_runoff',
-                        'direct_precip', 'stream_et', 'stream_head', 'stream_depth', 'stream_width', 'stream_bed_cond', 'streambed_gradient']
+                        'direct_precip', 'stream_et', 'stream_head', 'stream_depth', 'stream_width', 'streambed_cond', 'streambed_gradient']
             df.streambed_gradient = df.streambed_gradient.str.removesuffix('\n')
             df = change_type(df, ['l', 'r', 'c', 'iseg', 'ireach'], 'int') 
             df = change_type(df, ['flow_into_reach', 'flow_to_aquifer', 'flow_out_reach', 'overlnd_runoff',
                                     'direct_precip', 'stream_et', 'stream_head', 'stream_depth', 'stream_width',
-                                    'stream_bed_cond', 'streambed_gradient'], 'float')
+                                    'streambed_cond', 'streambed_gradient'], 'float')
             df.reset_index(inplace = True, drop= True)
     else:
         for sp in range(nsp):
@@ -238,6 +238,9 @@ if sfr_type == '2SEG':
                         # Add columns to params_save
                         params_save['flow_diff'] = flow_target - params_save.flow_out_reach
                         params_save['depth_diff'] = depth_target - params_save.stream_depth
+                        # Set columns in flow_save and depth_save
+                        flow_save.columns = [f'M{x}' for x in range(1,i+1)]
+                        depth_save.columns = [f'M{x}' for x in range(1,i+1)]
 
                         # Save as CSV
                         params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i}.csv'), index = False)
@@ -258,10 +261,15 @@ if sfr_type == '2SEG':
     # Add columns to params_save
     params_save['flow_diff'] = flow_target - params_save.flow_out_reach
     params_save['depth_diff'] = depth_target - params_save.stream_depth
+    # Set columns in flow_save and depth_save
+    flow_save.columns = [f'M{x}' for x in range(1,i)]
+    depth_save.columns = [f'M{x}' for x in range(1,i)]
+    flow_save['ireach'] = reach_data.ireach
+    flow_save['iseg'] = reach_data.iseg
     # Save as CSV
-    params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i}.csv'), index = False)
-    flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_M{i}.csv'), index = False)
-    depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i}.csv'), index = False)
+    params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i-1}.csv'), index = False)
+    flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_M{i-1}.csv'), index = False)
+    depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i-1}.csv'), index = False)
 
     end = datetime.datetime.now()
 
