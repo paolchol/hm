@@ -21,6 +21,7 @@ import math
 import numpy as np
 import os
 import pandas as pd
+import pickle
 
 # Define needed functions
 def change_type(df, cols, t):
@@ -132,6 +133,9 @@ def save(i, j, columns, params_save, flow_target, depth_target,
         params_save['depth_diff'] = depth_target - params_save.stream_depth
         # Save as CSV
         params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i-1}.csv'), index = False)
+    else:
+        with open('sfr_results_intermediate.pickle', 'wb') as f:
+            pickle.dump(params_save, f)
     # Set columns in flow_save and depth_save
     flow_save.columns, depth_save.columns, flowaq_save.columns = [f'M{x}' for x in range(j,i)], [f'M{x}' for x in range(j,i)], [f'M{x}' for x in range(j,i)]
     flow_save['ireach'], depth_save['ireach'], flowaq_save['ireach'] = reach_data.ireach, reach_data.ireach, reach_data.ireach
@@ -227,7 +231,7 @@ k_dict = {
 # 
 # st: a list containing the values to test
 # sa:
-#   if sfr_type == '1SEG', a list containing the values to test
+#   if sfr_type == '2SEG', a list containing the values to test
 #   if sfr_type == 'nSEG', a list containing n lists with the values to test
 
 s_dict = {
@@ -256,6 +260,15 @@ depth_target = 0.40   # m
 
 # Set the print of model runs to silent
 silent = True # True: the MODFLOW runs will not be printed in the terminal
+
+if sfr_type == '2SEG':
+    n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*len(s_dict['sa'])
+if sfr_type == 'nSEG':
+    n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*math.prod([len(s_dict['sa'][x]) for x in range(len(s_dict['sa']))])
+
+print('Based on the parameters set:\n')
+print('-' + str(n) + ' runs will be executed')
+print(f'- Approximately {n*0.5} s will be needed ({n*0.5/3600} days)')
 
 #%% Loop
 
