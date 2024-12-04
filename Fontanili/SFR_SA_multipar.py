@@ -194,15 +194,15 @@ sfr = flopy.modflow.ModflowSfr2(
 #%% Define loop parameters 
 
 # Define the type of SFR structure
-# 1SEG: 1 segment, the "testa" (the "head" of the fontanile) and the "asta" (the channel of the fontanile) are specified by the reach number in reach_t
+# 2SEG: 1 segment, the "testa" (the "head" of the fontanile) and the "asta" (the channel of the fontanile) are specified by the reach number in reach_t
 # nSEG: n segments, one for the "testa", multiple for the "asta"
-# sfr_type = '1SEG'
-sfr_type = 'nSEG'
+sfr_type = '2SEG'
+# sfr_type = 'nSEG'
 
 # Define the segment number of the "testa" and the number of segments of the "asta"
 seg_t = 1               # segment number
 seg_a = [1,2,3,4,5,6,7] # number of segments of the asta
-tseg = False            # True: the "head" takes the whole seg_t, False: the "head" takes a subset of seg_t, specify the reaches of the "head" in reach_t
+tseg = True             # True: the "head" takes the whole seg_t, False: the "head" takes a subset of seg_t, specify the reaches of the "head" in reach_t
 reach_t = 9             # reach number of the last reach of the "head"
 
 ## CHANGE NEEDED IF DIFFERENT NUMBER OF SEGMENTS ##
@@ -230,21 +230,21 @@ k_dict = {
 #   if sfr_type == '1SEG', a list containing the values to test
 #   if sfr_type == 'nSEG', a list containing n lists with the values to test
 
-# s_dict = {
-#     'st': [0.0001, 0.00003],
-#     'sa': [0.0003, 0.00005]
-# }
-
 s_dict = {
     'st': [0.0001, 0.00003],
-    'sa': [[0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005]]
+    'sa': [0.0003, 0.00005]
 }
+
+# s_dict = {
+#     'st': [0.0001, 0.00003],
+#     'sa': [[0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005]]
+# }
 
 # Define reach and segment from where to get the reach flow
 reach = 72
@@ -263,7 +263,30 @@ silent = True # True: the MODFLOW runs will not be printed in the terminal
 START OF LOOP
 '''
 
-if sfr_type == '1SEG':
+if sfr_type == '2SEG':
+    
+    def find_cond(tool, t, tseg):
+        """
+        tool:
+            the tool variable defined in this if structure
+        t: bool
+            if True, the condition found refers to the "testa"
+            if False, the condition found refers to the "asta"
+        tseg:
+            the tseg variable defined before
+        """
+        if tseg:
+            if t:
+                cond = tool.iseg == seg_t
+            else:
+                cond = tool.iseg != seg_t
+        else:
+            if t:
+                cond = (tool.iseg == seg_t) & (tool.ireach <= reach_t)
+            else:
+                cond = (tool.iseg == seg_t) & (tool.ireach > reach_t)
+        return cond
+
     start = datetime.datetime.now()
 
     # Calculate the number of runs
@@ -281,13 +304,14 @@ if sfr_type == '1SEG':
         # Transform reach_data to a pandas.DataFrame
         tool = pd.DataFrame(reach_data)
         # Change hydraulic conductivity and slope in the segments
-        tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'strhc1'] = kt
+        
+        tool.loc[find_cond(tool, True, tseg), 'strhc1'] = kt
         for ka in k_dict['ka']:
-            tool.loc[(tool.iseg == seg_t) & (tool.ireach > reach_t), 'strhc1'] = ka
+            tool.loc[find_cond(tool, False, tseg), 'strhc1'] = ka
             for st in s_dict['st']:
-                tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'slope'] = st
+                tool.loc[find_cond(tool, True, tseg), 'slope'] = st
                 for sa in s_dict['sa']:
-                    tool.loc[(tool.iseg == seg_t) & (tool.ireach > reach_t), 'slope'] = sa
+                    tool.loc[find_cond(tool, False, tseg), 'slope'] = sa
                     
                     params = [f'M{i}', kt, ka, st, sa]
                     params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
