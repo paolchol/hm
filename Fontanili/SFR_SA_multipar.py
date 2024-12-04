@@ -203,8 +203,8 @@ sfr = flopy.modflow.ModflowSfr2(
 # Define the type of SFR structure
 # 2SEG: 1 segment, the "testa" (the "head" of the fontanile) and the "asta" (the channel of the fontanile) are specified by the reach number in reach_t
 # nSEG: n segments, one for the "testa", multiple for the "asta"
-sfr_type = '2SEG'
-# sfr_type = 'nSEG'
+# sfr_type = '2SEG'
+sfr_type = 'nSEG'
 
 # Define the segment number of the "testa" and the number of segments of the "asta"
 seg_t = 1               # segment number
@@ -237,21 +237,21 @@ k_dict = {
 #   if sfr_type == '2SEG', a list containing the values to test
 #   if sfr_type == 'nSEG', a list containing n lists with the values to test
 
-s_dict = {
-    'st': [0.0001, 0.00003],
-    'sa': [0.0003, 0.00005]
-}
-
 # s_dict = {
 #     'st': [0.0001, 0.00003],
-#     'sa': [[0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005]]
+#     'sa': [0.0003, 0.00005]
 # }
+
+s_dict = {
+    'st': [0.0001, 0.00003],
+    'sa': [[0.0003, 0.00005],
+           [0.0003, 0.00005],
+           [0.0003, 0.00005],
+           [0.0003, 0.00005],
+           [0.0003, 0.00005],
+           [0.0003, 0.00005],
+           [0.0003, 0.00005]]
+}
 
 # Define reach and segment from where to get the reach flow
 reach = 72
