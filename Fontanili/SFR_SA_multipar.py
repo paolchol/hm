@@ -1,10 +1,12 @@
 #%% Description
 
 '''
-SFR_SA
+SFR_SA_multipar
 Script to run multiple instances of a MODFLOW model simulating a lowland spring using the SFR package
 
-- Modifies the .sfr file
+- Modifies the .sfr file changing multiple parameters
+    - k of the "testa" and the "asta" of the fontanile
+    - slope of the "testa" and the "asta" of the fontanile
 - Runs the model
 - Saves the outflow of a specified cell
 - Export the result as an .xlsx file
