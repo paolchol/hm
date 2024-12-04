@@ -270,8 +270,8 @@ if sfr_type == 'nSEG':
     n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*math.prod([len(s_dict['sa'][x]) for x in range(len(s_dict['sa']))])
 
 print('Based on the parameters set:\n')
-print('-' + str(n) + ' runs will be executed')
-print(f'- Approximately {n*0.5} s will be needed ({n*0.5/3600} days)')
+print('- ' + str(n) + ' runs will be executed')
+print(f'- Approximately {n*0.5} s will be needed ({n*0.5/(60*60*24)} days)')
 
 #%% Loop
 
