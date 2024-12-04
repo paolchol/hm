@@ -1,0 +1,14 @@
+!tool_m11_c1/
+tool_m11_c1/*
+!tool_m11_c1/test_datasets_m11_c1
+!tool_m11_c1/sfr_input_management.ipynb
+!tool_m11_c1/t_m11_c1.sfr
+tool_m11_c1/test_datasets_m11_c1/*
+!tool_m11_c1/test_datasets_m11_c1/t_m11_c1.sfr
+
+tool_m11_c2/
+
+!m11_C1/
+m11_C1/*
+!m11_C1/m11_C1.sfr
+!m11_C1/sfr_input_management.ipynb
