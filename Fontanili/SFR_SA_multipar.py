@@ -132,7 +132,7 @@ def save(i, j, columns, params_save, flow_target, depth_target,
         params_save['flow_diff'] = flow_target - params_save.flow_out_reach
         params_save['depth_diff'] = depth_target - params_save.stream_depth
         # Save as CSV
-        params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i-1}.csv'), index = False)
+        params_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_results_M{i-1}.csv'), index = False)
     else:
         with open('sfr_results_intermediate.pickle', 'wb') as f:
             pickle.dump(params_save, f)
@@ -141,9 +141,9 @@ def save(i, j, columns, params_save, flow_target, depth_target,
     flow_save['ireach'], depth_save['ireach'], flowaq_save['ireach'] = reach_data.ireach, reach_data.ireach, reach_data.ireach
     flow_save['iseg'], depth_save['iseg'], flowaq_save['iseg'] = reach_data.iseg, reach_data.iseg, reach_data.iseg
     # Save as CSV
-    flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_out_reach_M{i-1}.csv'), index = False)
-    depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i-1}.csv'), index = False)
-    flowaq_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_to_aquifer_M{i-1}.csv'), index = False)
+    flow_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_flow_out_reach_M{i-1}.csv'), index = False)
+    depth_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_depth_M{i-1}.csv'), index = False)
+    flowaq_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_flow_to_aquifer_M{i-1}.csv'), index = False)
 
 #%% # Define needed paths and model name
 
@@ -151,6 +151,9 @@ cwd = os.getcwd()
 sfr_data = os.path.join(cwd, 'test_files', 'busca_sfr2_sfr_data.xlsx') # SFR characteristics
 model_ws = os.path.join(cwd, 'test_files', 'sfr_model_test') # Model working directory
 model_name = 'busca_sfr2'
+# Create the output folder
+if not os.path.exists(os.path.join(model_ws, 'run_output')):
+    os.makedirs(os.path.join(model_ws, 'run_output'))
 
 #%% Load SFR characteristics
 
