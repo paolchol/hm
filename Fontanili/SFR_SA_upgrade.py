@@ -73,6 +73,70 @@ def load_streamflow_dat(f, nsp = 1):
             pass
     return df
 
+def run(i, j, tool, model_ws, model_name, params, params_save,
+        flow_save, depth_save, flow_target, depth_target, columns, flowaq_save):
+    # Write the new .sfr file transforming tool to reach_data
+    reach_data = tool.loc[:,:].to_records(index = False)
+    sfr.reach_data = reach_data
+    sfr.write_file()
+    # Run the model
+    # m_code = f'M{i}'
+    success, buff = flopy.mbase.run_model(
+                exe_name = os.path.join(model_ws, 'MF2005.exe'),
+                namefile = f'{model_name}.nam',
+                model_ws = model_ws,
+                silent = silent #False to test the code, then switch to True
+                )
+    if not success:
+        print(params)
+        raise Exception("MODFLOW did not terminate normally.")
+
+    # Load the streamflow.dat file
+    df = load_streamflow_dat(os.path.join(model_ws, f'{model_name}_streamflow.dat'))
+
+    # Extract flow and depth in the target reach
+    f = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
+    d = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
+
+    # Update the output structures
+    params_save.append(params + [f,d])
+    # Extract flow and depth in all reaches and add them to the output structures
+    flow_save = pd.concat([flow_save, df.flow_out_reach], axis=1)
+    depth_save = pd.concat([depth_save, df.stream_depth], axis=1)
+    flowaq_save = pd.concat([flowaq_save, df.flow_to_aquifer], axis=1)
+
+    # Save the results after 100 runs
+    if i % 100 == 0:
+
+        save(i+1, j, columns, params_save, flow_target,
+                depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save)
+        
+        # Clear the output structures
+        del params_save, flow_save, depth_save, flowaq_save
+
+        params_save = []
+        flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
+        j += 100
+    
+    return params_save, flow_save, depth_save, flowaq_save, j
+
+def save(i, j, columns, params_save, flow_target, depth_target,
+         flow_save, depth_save, reach_data, model_ws, flowaq_save):
+    # Define column labels
+    params_save = pd.DataFrame(params_save, columns = columns)
+    # Add columns to params_save
+    params_save['flow_diff'] = flow_target - params_save.flow_out_reach
+    params_save['depth_diff'] = depth_target - params_save.stream_depth
+    # Set columns in flow_save and depth_save
+    flow_save.columns, depth_save.columns, flowaq_save.columns = [f'M{x}' for x in range(j,i)], [f'M{x}' for x in range(j,i)], [f'M{x}' for x in range(j,i)]
+    flow_save['ireach'], depth_save['ireach'], flowaq_save['ireach'] = reach_data.ireach, reach_data.ireach, reach_data.ireach
+    flow_save['iseg'], depth_save['iseg'], flowaq_save['iseg'] = reach_data.iseg, reach_data.iseg, reach_data.iseg
+    # Save as CSV
+    params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i-1}.csv'), index = False)
+    flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_out_reach_M{i-1}.csv'), index = False)
+    depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i-1}.csv'), index = False)
+    flowaq_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_to_aquifer_M{i-1}.csv'), index = False)
+
 #%% # Define needed paths and model name
 
 cwd = os.getcwd()
@@ -126,14 +190,20 @@ sfr = flopy.modflow.ModflowSfr2(
 #%% Define loop parameters 
 
 # Define the type of SFR structure
-# 2SEG: 2 segments, one for the "testa" (the "head" of the fontanile) and one for the "asta" (the channel of the fontanile)
+# 1SEG: 1 segment, the "testa" (the "head" of the fontanile) and the "asta" (the channel of the fontanile) are specified by the reach number in reach_t
 # nSEG: n segments, one for the "testa", multiple for the "asta"
-# sfr_type = '2SEG'
+# sfr_type = '1SEG'
 sfr_type = 'nSEG'
 
 # Define the segment number of the "testa" and the number of segments of the "asta"
-seg_t = 1 # segment number
-seg_a = 6 # number of segments of the asta
+seg_t = 1               # segment number
+seg_a = [1,2,3,4,5,6,7] # number of segments of the asta
+tseg = False            # True: the "head" takes the whole seg_t, False: the "head" takes a subset of seg_t, specify the reaches of the "head" in reach_t
+reach_t = 9             # reach number of the last reach of the "head"
+
+## CHANGE NEEDED IF DIFFERENT NUMBER OF SEGMENTS ##
+# If you have a different number of segments, you will have to change some rows in the Loop section
+# Go to line 332 for explanation
 
 # Define hydraulic conductivity parameter dictionary
 # kt = t is "testa", the "head" of the fontanile
@@ -168,6 +238,7 @@ s_dict = {
            [0.0003, 0.00005],
            [0.0003, 0.00005],
            [0.0003, 0.00005],
+           [0.0003, 0.00005],
            [0.0003, 0.00005]]
 }
 
@@ -180,78 +251,15 @@ flow_target = 0.0506  # m3/s
 depth_target = 0.40   # m
 
 # Set the print of model runs to silent
-silent = True
+silent = True # True: the MODFLOW runs will not be printed in the terminal
 
 #%% Loop
 
 '''
 START OF LOOP
-'''  
+'''
 
-def run(i, j, tool, model_ws, model_name, params, params_save,
-        flow_save, depth_save, flow_target, depth_target, columns):
-    # Write the new .sfr file transforming tool to reach_data
-    reach_data = tool.loc[:,:].to_records(index = False)
-    sfr.reach_data = reach_data
-    sfr.write_file()
-    # Run the model
-    # m_code = f'M{i}'
-    success, buff = flopy.mbase.run_model(
-                exe_name = os.path.join(model_ws, 'MF2005.exe'),
-                namefile = f'{model_name}.nam',
-                model_ws = model_ws,
-                silent = silent #False to test the code, then switch to True
-                )
-    if not success:
-        print(params)
-        raise Exception("MODFLOW did not terminate normally.")
-
-    # Load the streamflow.dat file
-    df = load_streamflow_dat(os.path.join(model_ws, f'{model_name}_streamflow.dat'))
-
-    # Extract flow and depth in the target reach
-    f = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
-    d = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
-
-    # Update the output structures
-    params_save.append(params + [f,d])
-    # Extract flow and depth in all reaches and add them to the output structures
-    flow_save = pd.concat([flow_save, df.flow_out_reach], axis=1)
-    depth_save = pd.concat([depth_save, df.stream_depth], axis=1)
-
-    # Save the results after 100 runs
-    if i % 100 == 0:
-
-        save(i+1, j, columns, params_save, flow_target,
-                depth_target, flow_save, depth_save, reach_data, model_ws)
-        
-        # Clear the output structures
-        del params_save, flow_save, depth_save
-
-        params_save = []
-        flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
-        j += 100
-    
-    return params_save, flow_save, depth_save, j
-
-def save(i, j, columns, params_save, flow_target, depth_target,
-         flow_save, depth_save, reach_data, model_ws):
-    # Define column labels
-    params_save = pd.DataFrame(params_save, columns = columns)
-    # Add columns to params_save
-    params_save['flow_diff'] = flow_target - params_save.flow_out_reach
-    params_save['depth_diff'] = depth_target - params_save.stream_depth
-    # Set columns in flow_save and depth_save
-    flow_save.columns = [f'M{x}' for x in range(j,i)]
-    depth_save.columns = [f'M{x}' for x in range(j,i)]
-    flow_save['ireach'] = reach_data.ireach
-    flow_save['iseg'] = reach_data.iseg
-    # Save as CSV
-    params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i-1}.csv'), index = False)
-    flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_M{i-1}.csv'), index = False)
-    depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i-1}.csv'), index = False)
-
-if sfr_type == '2SEG':
+if sfr_type == '1SEG':
     start = datetime.datetime.now()
 
     # Calculate the number of runs
@@ -261,7 +269,7 @@ if sfr_type == '2SEG':
     # Initialize needed variables
     i, j = 1, 1
     params_save = []
-    flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
+    flow_save, depth_save, flowaq_save = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     columns = ['m_code', 'kt','ka', 'st', 'sa', 'flow_out_reach', 'stream_depth']
 
@@ -269,18 +277,18 @@ if sfr_type == '2SEG':
         # Transform reach_data to a pandas.DataFrame
         tool = pd.DataFrame(reach_data)
         # Change hydraulic conductivity and slope in the segments
-        tool.loc[tool.iseg == seg_t, 'strhc1'] = kt
+        tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'strhc1'] = kt
         for ka in k_dict['ka']:
-            tool.loc[tool.iseg != seg_t, 'strhc1'] = ka
+            tool.loc[(tool.iseg == seg_t) & (tool.ireach > reach_t), 'strhc1'] = ka
             for st in s_dict['st']:
-                tool.loc[tool.iseg == seg_t, 'slope'] = st
+                tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'slope'] = st
                 for sa in s_dict['sa']:
-                    tool.loc[tool.iseg != seg_t, 'slope'] = sa
+                    tool.loc[(tool.iseg == seg_t) & (tool.ireach > reach_t), 'slope'] = sa
                     
                     params = [f'M{i}', kt, ka, st, sa]
-                    params_save, flow_save, depth_save, j = run(i, j, tool, model_ws, model_name,
-                                                                params, params_save, flow_save, depth_save,
-                                                                flow_target, depth_target, columns)
+                    params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
+                                                                            params, params_save, flow_save, depth_save,
+                                                                            flow_target, depth_target, columns, flowaq_save)
                         
                     # Progress the counter to generate the model code
                     i += 1
@@ -288,7 +296,7 @@ if sfr_type == '2SEG':
     # Save the results
     reach_data = tool.loc[:,:].to_records(index = False)
     save(i, j, columns, params_save, flow_target,
-            depth_target, flow_save, depth_save, reach_data, model_ws)
+            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save)
 
     end = datetime.datetime.now()
 
@@ -302,47 +310,60 @@ elif sfr_type == 'nSEG':
     # Initialize needed variables
     i, j = 1, 1
     params_save = []
-    flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
+    flow_save, depth_save, flowaq_save = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    columns = ['m_code', 'kt','ka', 'st'] + [f'sa{x}' for x in range(1, seg_a+1)] + ['flow_out_reach', 'stream_depth']
+    columns = ['m_code', 'kt','ka', 'st'] + [f'sa{x}' for x in range(1, len(seg_a)+1)] + ['flow_out_reach', 'stream_depth']
 
     for kt in k_dict['kt']:
         # Transform reach_data to a pandas.DataFrame
         tool = pd.DataFrame(reach_data).copy()
         # Change hydraulic conductivity and slope in the segments
-        tool.loc[tool.iseg == seg_t, 'strhc1'] = kt
+        if not tseg:
+                    tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'strhc1'] = kt
+        else:
+            tool.loc[tool.iseg == seg_t, 'strhc1'] = kt
         for ka in k_dict['ka']:
             tool.loc[tool.iseg != seg_t, 'strhc1'] = ka
+            if not tseg:
+                tool.loc[(tool.iseg == seg_t) & (tool.ireach > reach_t), 'strhc1'] = ka
             for st in s_dict['st']:
-                tool.loc[tool.iseg == seg_t, 'slope'] = st
-                
-                #in questo momento stiamo cambiando solo un segmento
-                #trovare un modo per cambiare anche i successivi segmenti
-                for seg in range(1, seg_a+1):
+                if not tseg:
+                    tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'slope'] = st
+                else:
+                    tool.loc[tool.iseg == seg_t, 'slope'] = st
+                ## CHANGE NEEDED BELOW ## 
+                # The following for loops will have to be incremented or decreased based of the number
+                # of segments in seg_a (and the number of lists seg_dict['sa'])
+                for sa1 in s_dict['sa'][0]:
+                    if seg_a[0] == seg_t and not tseg:
+                        tool.loc[(tool.iseg == seg_a[0]) & (tool.ireach > reach_t), 'slope'] = sa1
+                    else:
+                        tool.loc[tool.iseg == seg_a[0], 'slope'] = sa1
+                    for sa2 in s_dict['sa'][1]:
+                        tool.loc[tool.iseg == seg_a[1], 'slope'] = sa2
+                        for sa3 in s_dict['sa'][2]:
+                            tool.loc[tool.iseg == seg_a[2], 'slope'] = sa3
+                            for sa4 in s_dict['sa'][3]:
+                                tool.loc[tool.iseg == seg_a[3], 'slope'] = sa4
+                                for sa5 in s_dict['sa'][4]:
+                                    tool.loc[tool.iseg == seg_a[4], 'slope'] = sa5                                    
+                                    for sa6 in s_dict['sa'][5]:
+                                        tool.loc[tool.iseg == seg_a[5], 'slope'] = sa6
+                                        for sa7 in s_dict['sa'][6]:
+                                            tool.loc[tool.iseg == seg_a[6], 'slope'] = sa7
 
-                    for sa in s_dict['sa'][seg-1]:
-                        print(f'M{i}', seg, sa)
-                        tool.loc[tool.iseg == seg+seg_t, 'slope'] = sa
-                        
-                        #aggiungere for sui segmenti successivi
-                        # while g < seg_a:
-                        #     bla bla
-                        # for sa in s_dict['sa'][]
-
-
-                        # sas = tool.groupby('iseg').mean().slope.to_list() # slopes assigned to the segments
-                        # params = [f'M{i}', kt, ka] + sas
-                        # params_save, flow_save, depth_save, j = run(i, j, tool, model_ws, model_name,
-                        #                                         params, params_save, flow_save, depth_save,
-                        #                                         flow_target, depth_target, columns)
-                            
-                        # Progress the counter to generate the model code
-                        i += 1
-
+                                            sas = [sa1, sa2, sa3, sa4, sa5, sa6, sa7] # slopes assigned to the segments
+                                            params = [f'M{i}', kt, ka] + sas
+                                            params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
+                                                                                                    params, params_save, flow_save, depth_save,
+                                                                                                    flow_target, depth_target, columns, flowaq_save)
+                                            # Progress the counter to generate the model code
+                                            i += 1
+    
     # Save the results
-    # reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
-    # save(i, j, columns, params_save, flow_target,
-    #         depth_target, flow_save, depth_save, reach_data, model_ws)
+    reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
+    save(i, j, columns, params_save, flow_target,
+            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save)
 
     end = datetime.datetime.now()
 else:
