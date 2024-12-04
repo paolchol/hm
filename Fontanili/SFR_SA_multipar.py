@@ -111,30 +111,32 @@ def run(i, j, tool, model_ws, model_name, params, params_save,
     if i % 100 == 0:
 
         save(i+1, j, columns, params_save, flow_target,
-                depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save)
+                depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
+                save_100 = True)
         
         # Clear the output structures
-        del params_save, flow_save, depth_save, flowaq_save
+        del flow_save, depth_save, flowaq_save
 
-        params_save = []
-        flow_save, depth_save = pd.DataFrame(), pd.DataFrame()
+        flow_save, depth_save, flowaq_save = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         j += 100
     
     return params_save, flow_save, depth_save, flowaq_save, j
 
 def save(i, j, columns, params_save, flow_target, depth_target,
-         flow_save, depth_save, reach_data, model_ws, flowaq_save):
-    # Define column labels
-    params_save = pd.DataFrame(params_save, columns = columns)
-    # Add columns to params_save
-    params_save['flow_diff'] = flow_target - params_save.flow_out_reach
-    params_save['depth_diff'] = depth_target - params_save.stream_depth
+         flow_save, depth_save, reach_data, model_ws, flowaq_save, save_100 = True):
+    if not save_100:
+        # Define column labels
+        params_save = pd.DataFrame(params_save, columns = columns)
+        # Add columns to params_save
+        params_save['flow_diff'] = flow_target - params_save.flow_out_reach
+        params_save['depth_diff'] = depth_target - params_save.stream_depth
+        # Save as CSV
+        params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i-1}.csv'), index = False)
     # Set columns in flow_save and depth_save
     flow_save.columns, depth_save.columns, flowaq_save.columns = [f'M{x}' for x in range(j,i)], [f'M{x}' for x in range(j,i)], [f'M{x}' for x in range(j,i)]
     flow_save['ireach'], depth_save['ireach'], flowaq_save['ireach'] = reach_data.ireach, reach_data.ireach, reach_data.ireach
     flow_save['iseg'], depth_save['iseg'], flowaq_save['iseg'] = reach_data.iseg, reach_data.iseg, reach_data.iseg
     # Save as CSV
-    params_save.to_csv(os.path.join(model_ws, f'sfr_results_M{i-1}.csv'), index = False)
     flow_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_out_reach_M{i-1}.csv'), index = False)
     depth_save.to_csv(os.path.join(model_ws, f'sfr_reach_depth_M{i-1}.csv'), index = False)
     flowaq_save.to_csv(os.path.join(model_ws, f'sfr_reach_flow_to_aquifer_M{i-1}.csv'), index = False)
@@ -298,7 +300,8 @@ if sfr_type == '1SEG':
     # Save the results
     reach_data = tool.loc[:,:].to_records(index = False)
     save(i, j, columns, params_save, flow_target,
-            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save)
+            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
+            save_100=False)
 
     end = datetime.datetime.now()
 
@@ -354,7 +357,7 @@ elif sfr_type == 'nSEG':
                                         for sa7 in s_dict['sa'][6]:
                                             tool.loc[tool.iseg == seg_a[6], 'slope'] = sa7
 
-                                            sas = [sa1, sa2, sa3, sa4, sa5, sa6, sa7] # slopes assigned to the segments
+                                            sas = [st, sa1, sa2, sa3, sa4, sa5, sa6, sa7] # slopes assigned to the segments
                                             params = [f'M{i}', kt, ka] + sas
                                             params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
                                                                                                     params, params_save, flow_save, depth_save,
@@ -365,7 +368,8 @@ elif sfr_type == 'nSEG':
     # Save the results
     reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
     save(i, j, columns, params_save, flow_target,
-            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save)
+            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
+            save_100 = False)
 
     end = datetime.datetime.now()
 else:
