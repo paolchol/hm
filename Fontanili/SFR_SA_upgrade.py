@@ -223,7 +223,7 @@ k_dict = {
 # 
 # st: a list containing the values to test
 # sa:
-#   if sfr_type == '2SEG', a list containing the values to test
+#   if sfr_type == '1SEG', a list containing the values to test
 #   if sfr_type == 'nSEG', a list containing n lists with the values to test
 
 # s_dict = {
