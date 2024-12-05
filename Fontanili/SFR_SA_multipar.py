@@ -134,7 +134,7 @@ def save(i, j, columns, params_save, flow_target, depth_target,
         # Save as CSV
         params_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_results_M{i-1}.csv'), index = False)
     else:
-        with open('sfr_results_intermediate.pickle', 'wb') as f:
+        with open(os.path.join(model_ws, 'run_output', 'sfr_results_intermediate.pickle'), 'wb') as f:
             pickle.dump(params_save, f)
     # Set columns in flow_save and depth_save
     flow_save.columns, depth_save.columns, flowaq_save.columns = [f'M{x}' for x in range(j,i)], [f'M{x}' for x in range(j,i)], [f'M{x}' for x in range(j,i)]
@@ -145,7 +145,7 @@ def save(i, j, columns, params_save, flow_target, depth_target,
     depth_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_depth_M{i-1}.csv'), index = False)
     flowaq_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_flow_to_aquifer_M{i-1}.csv'), index = False)
 
-#%% # Define needed paths and model name
+#%% Define needed paths and model name
 
 cwd = os.getcwd()
 sfr_data = os.path.join(cwd, 'test_files', 'busca_sfr2_sfr_data.xlsx') # SFR characteristics
