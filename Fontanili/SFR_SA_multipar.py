@@ -76,7 +76,7 @@ def load_streamflow_dat(f, nsp = 1):
             pass
     return df
 
-def run(i, j, tool, model_ws, model_name, params, params_save,
+def run(i, j, tool, sfr, model_ws, model_name, params, params_save,
         flow_save, depth_save, flow_target, depth_target, columns, flowaq_save):
     # Write the new .sfr file transforming tool to reach_data
     reach_data = tool.loc[:,:].to_records(index = False)
@@ -330,7 +330,7 @@ if sfr_type == '2SEG':
                     tool.loc[find_cond(tool, False, tseg), 'slope'] = sa
                     
                     params = [f'M{i}', kt, ka, st, sa]
-                    params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
+                    params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, sfr, model_ws, model_name,
                                                                             params, params_save, flow_save, depth_save,
                                                                             flow_target, depth_target, columns, flowaq_save)
                         
@@ -399,7 +399,7 @@ elif sfr_type == 'nSEG':
 
                                             sas = [st, sa1, sa2, sa3, sa4, sa5, sa6, sa7] # slopes assigned to the segments
                                             params = [f'M{i}', kt, ka] + sas
-                                            params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
+                                            params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, sfr, model_ws, model_name,
                                                                                                     params, params_save, flow_save, depth_save,
                                                                                                     flow_target, depth_target, columns, flowaq_save)
                                             # Progress the counter to generate the model code
