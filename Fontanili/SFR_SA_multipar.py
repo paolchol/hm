@@ -76,8 +76,9 @@ def load_streamflow_dat(f, nsp = 1):
             pass
     return df
 
-def run(i, j, tool, sfr, model_ws, model_name, params, params_save,
-        flow_save, depth_save, flow_target, depth_target, columns, flowaq_save):
+def run(i, j, tool, model_ws, model_name, params, params_save,
+        flow_save, depth_save, flow_target, depth_target, columns, flowaq_save,
+        add_output = None):
     # Write the new .sfr file transforming tool to reach_data
     reach_data = tool.loc[:,:].to_records(index = False)
     sfr.reach_data = reach_data
@@ -98,9 +99,17 @@ def run(i, j, tool, sfr, model_ws, model_name, params, params_save,
     df = load_streamflow_dat(os.path.join(model_ws, f'{model_name}_streamflow.dat'))
 
     # Extract flow and depth in the target reach
-    f = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
-    d = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
-
+    if type(reach) is list:
+        f = df.loc[(df.ireach == reach[0]) & (df.iseg == segment[0]), 'flow_out_reach'].values[0]
+        d = df.loc[(df.ireach == reach[0]) & (df.iseg == segment[0]), 'stream_depth'].values[0]
+        for rch, seg in zip(reach, segment):
+            f1 = df.loc[(df.ireach == rch) & (df.iseg == seg), 'flow_out_reach'].values[0]
+            d1 = df.loc[(df.ireach == rch) & (df.iseg == seg), 'stream_depth'].values[0]
+            add_output.append([params[0], rch, seg, f1, d1])
+    else:
+        f = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
+        d = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
+    
     # Update the output structures
     params_save.append(params + [f,d])
     # Extract flow and depth in all reaches and add them to the output structures
@@ -121,10 +130,11 @@ def run(i, j, tool, sfr, model_ws, model_name, params, params_save,
         flow_save, depth_save, flowaq_save = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         j += 100
     
-    return params_save, flow_save, depth_save, flowaq_save, j
+    return params_save, flow_save, depth_save, flowaq_save, j, add_output
 
 def save(i, j, columns, params_save, flow_target, depth_target,
-         flow_save, depth_save, reach_data, model_ws, flowaq_save, save_100 = True):
+         flow_save, depth_save, reach_data, model_ws, flowaq_save,
+         add_output=None, save_100 = True):
     if not save_100:
         # Define column labels
         params_save = pd.DataFrame(params_save, columns = columns)
@@ -133,7 +143,21 @@ def save(i, j, columns, params_save, flow_target, depth_target,
         params_save['depth_diff'] = depth_target - params_save.stream_depth
         # Save as CSV
         params_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_results_M{i-1}.csv'), index = False)
+
+        if add_output is not None:
+            add_output_df = pd.DataFrame(add_output, columns = ['model', 'reach', 'segment', 'flow_out_reach', 'stream_depth'])
+            add_output_df['flow_diff'] = flow_target - add_output_df.flow_out_reach
+            add_output_df['depth_diff'] = depth_target - add_output_df.stream_depth
+            add_output_df.to_csv(os.path.join(model_ws, 'run_output', f'sfr_additional_output_M{i-1}.csv'), index = False)
     else:
+        # just to test the correctedness of the first 100 runs
+        if i == 101:
+            params_save = pd.DataFrame(params_save, columns = columns)
+            # Add columns to params_save
+            params_save['flow_diff'] = flow_target - params_save.flow_out_reach
+            params_save['depth_diff'] = depth_target - params_save.stream_depth
+            # Save as CSV
+            params_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_results_TEST_M{i-1}.csv'), index = False)
         with open(os.path.join(model_ws, 'run_output', 'sfr_results_intermediate.pickle'), 'wb') as f:
             pickle.dump(params_save, f)
     # Set columns in flow_save and depth_save
@@ -254,8 +278,8 @@ s_dict = {
 }
 
 # Define reach and segment from where to get the reach flow
-reach = 72
-segment = 1
+reach = 72      #if single reach: just an integer, if more than one, write a list
+segment = 1     #one segment for each reach
 
 # Define the target values for flow and depth
 flow_target = 0.0506  # m3/s
@@ -278,6 +302,11 @@ print(f'- Approximately {n*0.5} s will be needed ({n*0.5/(60*60*24)} days)')
 '''
 START OF LOOP
 '''
+
+if type(reach) is list:
+    add_output = []
+else:
+    add_output = None
 
 if sfr_type == '2SEG':
     
@@ -330,9 +359,10 @@ if sfr_type == '2SEG':
                     tool.loc[find_cond(tool, False, tseg), 'slope'] = sa
                     
                     params = [f'M{i}', kt, ka, st, sa]
-                    params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, sfr, model_ws, model_name,
+                    params_save, flow_save, depth_save, flowaq_save, j, add_output = run(i, j, tool, model_ws, model_name,
                                                                             params, params_save, flow_save, depth_save,
-                                                                            flow_target, depth_target, columns, flowaq_save)
+                                                                            flow_target, depth_target, columns, flowaq_save,
+                                                                            add_output=add_output)
                         
                     # Progress the counter to generate the model code
                     i += 1
@@ -340,7 +370,7 @@ if sfr_type == '2SEG':
     # Save the results
     reach_data = tool.loc[:,:].to_records(index = False)
     save(i, j, columns, params_save, flow_target,
-            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
+            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,add_output=add_output,
             save_100=False)
 
     end = datetime.datetime.now()
@@ -399,16 +429,17 @@ elif sfr_type == 'nSEG':
 
                                             sas = [st, sa1, sa2, sa3, sa4, sa5, sa6, sa7] # slopes assigned to the segments
                                             params = [f'M{i}', kt, ka] + sas
-                                            params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, sfr, model_ws, model_name,
+                                            params_save, flow_save, depth_save, flowaq_save, j, add_output = run(i, j, tool, model_ws, model_name,
                                                                                                     params, params_save, flow_save, depth_save,
-                                                                                                    flow_target, depth_target, columns, flowaq_save)
+                                                                                                    flow_target, depth_target, columns, flowaq_save,
+                                                                                                    add_output=add_output)
                                             # Progress the counter to generate the model code
                                             i += 1
     
     # Save the results
     reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
     save(i, j, columns, params_save, flow_target,
-            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
+            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,add_output=add_output,
             save_100 = False)
 
     end = datetime.datetime.now()
