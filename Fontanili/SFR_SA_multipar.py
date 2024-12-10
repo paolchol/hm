@@ -1,4 +1,4 @@
-#%% Description
+#%% # Description
 
 '''
 SFR_SA_multipar
@@ -12,7 +12,7 @@ Script to run multiple instances of a MODFLOW model simulating a lowland spring 
 - Export the result as an .xlsx file
 '''
 
-#%% Setup
+#%% # Setup
 
 # Import necessary packages
 import datetime
@@ -169,7 +169,7 @@ def save(i, j, columns, params_save, flow_target, depth_target,
     depth_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_depth_M{i-1}.csv'), index = False)
     flowaq_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_flow_to_aquifer_M{i-1}.csv'), index = False)
 
-#%% Define needed paths and model name
+#%% # Define needed paths and model name
 
 cwd = os.getcwd()
 sfr_data = os.path.join(cwd, 'test_files', 'busca_sfr2_sfr_data.xlsx') # SFR characteristics
@@ -179,7 +179,7 @@ model_name = 'busca_sfr2'
 if not os.path.exists(os.path.join(model_ws, 'run_output')):
     os.makedirs(os.path.join(model_ws, 'run_output'))
 
-#%% Load SFR characteristics
+#%% # Load SFR characteristics
 
 # Load general parameters (item 1)
 it1 = pd.read_excel(sfr_data, sheet_name = 'ITEM1')
@@ -222,7 +222,7 @@ sfr = flopy.modflow.ModflowSfr2(
     reach_data=reach_data
 )
 
-#%% Define loop parameters 
+#%% # Define loop parameters 
 
 # Define the type of SFR structure
 # 2SEG: 1 segment, the "testa" (the "head" of the fontanile) and the "asta" (the channel of the fontanile) are specified by the reach number in reach_t
@@ -297,7 +297,7 @@ print('Based on the parameters set:\n')
 print('- ' + str(n) + ' runs will be executed')
 print(f'- Approximately {n*0.5} s will be needed ({n*0.5/(60*60*24)} days)')
 
-#%% Loop
+#%% # Loop
 
 '''
 START OF LOOP
