@@ -1,10 +1,4 @@
-#%% Description
-
-"""
-ERROR:
-the DRAIN results get equal to 0 in each
-cell: fix this
-"""
+#%% # Description
 
 '''
 DRN_SA
@@ -16,7 +10,7 @@ Script to run multiple instances of a MODFLOW model simulating a lowland spring 
 - Export the result as an .xlsx file
 '''
 
-#%% Setup
+#%% # Setup
 
 # Import necessary packages
 import datetime
@@ -70,7 +64,7 @@ def load_drn_file(path):
     df = change_type(df, ['stage', 'conductance'], 'float')    
     return df
 
-#%% Load DRN characteristics
+#%% # Load DRN characteristics
 
 # Define needed paths and model name
 cwd = os.getcwd()   #where test files are stored (github)
@@ -90,12 +84,6 @@ drn.column = drn.column - 1
 # Generate the DRN package through flopy
 # m = flopy.modflow.Modflow(model_name, model_ws=model_ws)
 ipakcb = 50 #code for cell-by-cell flow data storage
-# drain = flopy.modflow.ModflowDrn(
-#     m,
-#     ipakcb = ipakcb,
-#     stress_period_data = {0: drn.iloc[:, :-1].to_numpy().tolist()},
-#     filenames = os.path.join(model_ws, f'{model_name}.drn')
-# )
 
 mf = flopy.modflow.Modflow.load(
     os.path.join(model_ws, f'{model_name}.nam'),
@@ -107,27 +95,26 @@ mf = flopy.modflow.Modflow.load(
 mf.drn.ipakcb = ipakcb
 mf.drn.filenames = os.path.join(model_ws, f'{model_name}.drn')
 
-#%% Define loop parameters
+#%% # Define loop parameters
 
 # Define limits of hydraulic conductivity range and number of iterations
 ki = 0.01
 kf = 0.000001
 n = 10 #10 to test the code, then switch to 100
 step = np.linspace(ki,kf,n)
-inputs = []
-outputs = []
 
 # Define cells until the flow value is extracted from drain[0]
 row_limit = 93
 column_limit = 76
 
-#%% Loop
+#%% # Loop
 # Loop to change conductance in the drain package, run the model and extract cbb results
 
 '''
 START OF LOOP
 '''
 start = datetime.datetime.now()
+outputs = []
 for i in range(n):
     k = step[i]
     # Change conductance
@@ -138,16 +125,7 @@ for i in range(n):
     # Modify the drn package' stress period data
     mf.drn.stress_period_data = stress_period_data
     mf.drn.write_file(check = False)
-    
-    # Run the model
-    # success, buff = flopy.mbase.run_model(
-    #     exe_name = os.path.join(model_ws, 'MF2005.exe'),
-    #     namefile = f'{model_name}.nam',
-    #     model_ws = model_ws,
-    #     silent = False  #False to test the code, then switch to True
-    #     )
-    # if not success:
-    #     raise Exception("MODFLOW did not terminate normally.")
+
     success, buff = mf.run_model(silent=True) #False to test the code, then switch to True
     if not success:
         raise Exception("MODFLOW did not terminate normally.")
@@ -158,10 +136,10 @@ for i in range(n):
 
     # Sum the flux extracted from drain[0]
     sum_drain = np.sum(drn_cbb[0][0, :row_limit+1, :column_limit+1])
+    sum_drain_tot = np.sum(drn_cbb[0][0, :,:])
 
-    # Append the input and output to lists
-    inputs.append(k)
-    outputs.append(sum_drain)
+    # Append the parameters to a list
+    outputs.append([k, sum_drain, sum_drain_tot])
 end = datetime.datetime.now()
 
 print('Runs terminated')
@@ -170,5 +148,5 @@ print('Elapsed time (s): ', f'{(end-start).seconds}.{round((end-start).microseco
 
 #%% Save to dataframe and export
 
-df_results = pd.DataFrame({'k_value': inputs, 'drain_results': outputs})
+df_results = pd.DataFrame(outputs, columns = ['k', 'drn_until_rc', 'drn_total'])
 df_results.to_excel(os.path.join(model_ws, 'drain_results.xlsx'))
