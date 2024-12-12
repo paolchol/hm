@@ -49,11 +49,11 @@ def load_streamflow_dat(f, nsp = 1):
                 r = list(filter(None, row.split(' ')))
                 df = pd.concat([df, pd.DataFrame(r).transpose()])
             df.columns = ['l', 'r', 'c', 'iseg', 'ireach', 'flow_into_reach', 'flow_to_aquifer', 'flow_out_reach', 'overlnd_runoff',
-                        'direct_precip', 'stream_et', 'stream_head', 'strem_depth', 'stream_width', 'stream_bed_cond', 'streambed_gradient']
+                        'direct_precip', 'stream_et', 'stream_head', 'stream_depth', 'stream_width', 'stream_bed_cond', 'streambed_gradient']
             df.streambed_gradient = df.streambed_gradient.str.removesuffix('\n')
             df = change_type(df, ['l', 'r', 'c', 'iseg', 'ireach'], 'int') 
             df = change_type(df, ['flow_into_reach', 'flow_to_aquifer', 'flow_out_reach', 'overlnd_runoff',
-                                    'direct_precip', 'stream_et', 'stream_head', 'strem_depth', 'stream_width',
+                                    'direct_precip', 'stream_et', 'stream_head', 'stream_depth', 'stream_width',
                                     'stream_bed_cond', 'streambed_gradient'], 'float')
             df.reset_index(inplace = True, drop= True)
     else:
@@ -136,7 +136,8 @@ hydraulic_conductivities = np.linspace(ki, kf, n)  # Define range of K values
 
 # Store results
 inputs = []
-outputs = []
+flows = []
+depths = []
 
 # Define reach and segment from where to get the reach flow
 reach = 63
@@ -165,17 +166,19 @@ for k_value in hydraulic_conductivities:
     if not success:
         print(f"Model run failed for K = {k_value:.3e}")
         inputs.append(k_value)
-        outputs.append(None)
+        flows.append(None)
+        depths.append(None)
         continue
 
     # Load the streamflow.dat file and extract the searched flow
     f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
     df = load_streamflow_dat(f)
     flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
-    
+    depth = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
     # Append k and flow
     inputs.append(k_value)
-    outputs.append(flow)
+    flows.append(flow)
+    depths.append(depth)
 
 end = datetime.datetime.now()
 
@@ -184,7 +187,7 @@ print('Number of runs: ', n)
 print('Elapsed time (s): ', f'{(end-start).seconds}.{round((end-start).microseconds*(10**-6),2)}')
 
 #%% Save to dataframe and export
-df_results = pd.DataFrame({'k_value': inputs, 'head': outputs})
+df_results = pd.DataFrame({'k_value': inputs, 'flow': flows, 'depth':depths})
 df_results.to_excel(os.path.join(model_ws, 'lake_results.xlsx'))
 
 # %%
