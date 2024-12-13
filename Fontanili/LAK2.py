@@ -108,7 +108,7 @@ it5 = pd.read_excel(sfr_data, sheet_name = 'ITEM5')
 segment_data = pd.read_excel(sfr_data, sheet_name = 'ITEM6abc')
 segment_data.columns = [x.lower() for x in segment_data.columns]
 segment_data = segment_data.loc[:,:].to_records(index = False)
-#segment_data = {0: segment_data}
+segment_data = {0: segment_data}
 
 # Load channel geometry data (item 6d)
 item6d = pd.read_excel(sfr_data, sheet_name='ITEM6d')  # Geometry data
