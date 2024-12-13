@@ -81,7 +81,10 @@ def change_type(df, cols, t):
 
 # Load the Existing Model
 mf = flopy.modflow.Modflow.load(
-    f"{model_name}.nam", model_ws=model_ws, check=False, verbose=True
+    f"{model_name}.nam", 
+    model_ws=model_ws, 
+    check=False, 
+    verbose=True
 )
 
 #%% Generate SFR with flopy
@@ -101,11 +104,31 @@ reach_data.j = reach_data.j - 1
 # Load item 5
 it5 = pd.read_excel(sfr_data, sheet_name = 'ITEM5')
 
-# Load segment data (item 6a)
+# Load segment data (item 6abc)
 segment_data = pd.read_excel(sfr_data, sheet_name = 'ITEM6abc')
 segment_data.columns = [x.lower() for x in segment_data.columns]
 segment_data = segment_data.loc[:,:].to_records(index = False)
-segment_data = {0: segment_data}
+#segment_data = {0: segment_data}
+
+# Load channel geometry data (item 6d)
+item6d = pd.read_excel(sfr_data, sheet_name='ITEM6d')  # Geometry data
+
+# Initialize the channel_geometry_data dictionary
+channel_geometry_data = {}
+
+# Group by segment
+for segment, group in item6d.groupby("segment"):
+    # Extract x and z values for the segment
+    x_values = group[group["value"] == "x"].iloc[:, 2:].values.flatten()
+    z_values = group[group["value"] == "z"].iloc[:, 2:].values.flatten()
+    
+    # Create a recarray for this segment
+    geometry = np.rec.array(list(zip(x_values, z_values)), dtype=[("x", "f4"), ("z", "f4")])
+    
+    # Store the segment data under the first index (assuming single stress period `i=0`)
+    if 0 not in channel_geometry_data:
+        channel_geometry_data[0] = {}
+    channel_geometry_data[0][segment] = geometry
 
 # Generate the SFR package through flopy
 unit_number = 27 # define this based on the model
@@ -121,10 +144,16 @@ sfr = flopy.modflow.ModflowSfr2(
     unit_number = unit_number,
     isfropt = it1.ISFROPT.values[0],
     segment_data = segment_data,
-    reach_data=reach_data
+    reach_data=reach_data,
+    channel_geometry_data=channel_geometry_data
 ) 
-# Write the updated model input files
+
+#  Write the updated model input files
 mf.write_input()
+# # Write all model input files, excluding unsupported 'check' argument
+# for p in mf.packagelist:
+#     if hasattr(p, 'write_file'):
+#         p.write_file()
 
 #%% Define loop parameters 
 ki = 0.01
