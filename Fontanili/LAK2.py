@@ -154,6 +154,7 @@ mf.write_input()
 # for p in mf.packagelist:
 #     if hasattr(p, 'write_file'):
 #         p.write_file()
+mf.sfr.check()
 
 #%% Define loop parameters 
 ki = 0.01
@@ -189,7 +190,7 @@ for k_value in hydraulic_conductivities:
 
     # Load and run the model
     mf = flopy.modflow.Modflow.load(f"{model_name}.nam", model_ws=model_ws, check=False)
-    success, buff = mf.run_model(silent=True)
+    success, buff = mf.run_model(silent=False)
     if not success:
         print(f"Model run failed for K = {k_value:.3e}")
         inputs.append(k_value)
