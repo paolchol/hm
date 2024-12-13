@@ -20,6 +20,7 @@ import shutil
 cwd = "d:\Claudia\MAURICE" # Local directory
 model_ws = os.path.join(cwd,"LAKE-2")  # Folder containing the model
 lak_file = os.path.join(model_ws, "busca_base_infittito_apr24_sfr_icalc2_lake.lak")
+sfr_data = os.path.join(model_ws, 'busca_sfr_data_icalc2_lake.xlsx') # SFR characteristics
 model_name = "busca_base_infittito_apr24_sfr_icalc2_lake"
 
 # Backup the original LAK file
@@ -84,9 +85,6 @@ mf = flopy.modflow.Modflow.load(
 )
 
 #%% Generate SFR with flopy
-cwd1 = os.getcwd()  #HM/Fontanili/tutorials
-sfr_data = os.path.join(cwd1, 'test_files', 'busca_sfr2_sfr_data.xlsx') # SFR characteristics
-
 # Load general parameters (item 1)
 it1 = pd.read_excel(sfr_data, sheet_name = 'ITEM1')
 
