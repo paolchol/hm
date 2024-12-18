@@ -79,13 +79,14 @@ def change_type(df, cols, t):
         df[col] = df[col].astype(t)
     return df
 
-# Load the Existing Model
-mf = flopy.modflow.Modflow.load(
-    f"{model_name}.nam", 
-    model_ws=model_ws, 
-    check=False, 
-    verbose=True
-)
+# #  Load the model
+# mf = flopy.modflow.Modflow(
+#     modelname = model_name, 
+#     model_ws=model_ws, 
+#     check=False, 
+#     verbose=False
+# )
+mf = flopy.modflow.Modflow.load(f"{model_name}.nam", model_ws=model_ws, check=False)
 
 #%% Generate SFR with flopy
 # Load general parameters (item 1)
@@ -112,23 +113,11 @@ segment_data = {0: segment_data}
 
 # Load channel geometry data (item 6d)
 item6d = pd.read_excel(sfr_data, sheet_name='ITEM6d')  # Geometry data
-
-# Initialize the channel_geometry_data dictionary
-channel_geometry_data = {}
-
-# Group by segment
-for segment, group in item6d.groupby("segment"):
-    # Extract x and z values for the segment
-    x_values = group[group["value"] == "x"].iloc[:, 2:].values.flatten()
-    z_values = group[group["value"] == "z"].iloc[:, 2:].values.flatten()
-    
-    # Create a recarray for this segment
-    geometry = np.rec.array(list(zip(x_values, z_values)), dtype=[("x", "f4"), ("z", "f4")])
-    
-    # Store the segment data under the first index (assuming single stress period `i=0`)
-    if 0 not in channel_geometry_data:
-        channel_geometry_data[0] = {}
-    channel_geometry_data[0][segment] = geometry
+geom_data = {}
+for seg in item6d.segment.unique():
+    tool = item6d.loc[item6d.segment == seg, [f'v{i}' for i in range(1,9)]].to_numpy().copy()
+    geom_data[int(seg)] = [tool[0].tolist(), tool[1].tolist()]
+geom_data = {0: geom_data}
 
 # Generate the SFR package through flopy
 unit_number = 27 # define this based on the model
@@ -145,22 +134,31 @@ sfr = flopy.modflow.ModflowSfr2(
     isfropt = it1.ISFROPT.values[0],
     segment_data = segment_data,
     reach_data=reach_data,
-    channel_geometry_data=channel_geometry_data
+    channel_geometry_data=geom_data
 ) 
 
-#  Write the updated model input files
-mf.write_input()
-# # Write all model input files, excluding unsupported 'check' argument
-# for p in mf.packagelist:
-#     if hasattr(p, 'write_file'):
-#         p.write_file()
-mf.sfr.check()
+#  Write the updated SFR input file
+sfr.write_file()
 
-#%% Define loop parameters 
+#%% Define loop parameters
+# Access LAK package
+lak = mf.lak
+
+# Define fixed parameters used to calculate the lakebed conductance
+lakebed_thickness = 0.5  
+
+lake_mask = lak.lakarr.array   # Extract lake mask array from lakarr
+lake_cells = np.argwhere(lake_mask[0] > 0)  # Find lake cells
+delr = mf.dis.delr.array  # 1D array of column widths
+delc = mf.dis.delc.array  # 1D array of row heights
+cell_area = np.outer(delc, delr)  # Shape: (nrow, ncol)
+
+
+# Define limits of k as the variable parameter
 ki = 0.01
 kf = 0.000001
-n = 10
-hydraulic_conductivities = np.linspace(ki, kf, n)  # Define range of K values
+n = 5
+lakebed_ks = np.linspace(ki, kf, n)  # Define range of K values
 
 # Store results
 inputs = []
@@ -170,30 +168,51 @@ depths = []
 # Define reach and segment from where to get the reach flow
 reach = 63
 segment = 1
+
 #%% LOOP
 '''
 LOOP
 '''
-# Open the LAK file outside of the loop 
-with open(backup_lak_file, "r") as file:
-        lines = file.readlines()
-
+# Modify lakebed conductance value based on different k values
 start = datetime.datetime.now()
+lakebed_conductance = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
 
-for k_value in hydraulic_conductivities:
-    # Modify the K value in the second line of the LAK file
-    lines[1] = f"     0.000        10 {k_value:.3e}\n"  # Update K value
+for kb in lakebed_ks:
+    # Initialize lakebed conductance with zeros (2D array for each layer)
+    lakebed_conductance = np.zeros((mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
 
-    # Write the updated LAK file
-    with open(lak_file, "w") as file:
-        file.writelines(lines)
+    # Calculate conductance only for lake cells (layer, row, column)
+    for row, col in lake_cells:
+        lakebed_conductance[row, col] = (kb * cell_area[row, col]) / lakebed_thickness
 
-    # Load and run the model
-    mf = flopy.modflow.Modflow.load(f"{model_name}.nam", model_ws=model_ws, check=False)
-    success, buff = mf.run_model(silent=False)
+    # Update bdlknc for each layer using Util2d
+    for layer in range(mf.dis.nlay):
+        # Create a Util2d object for the lakebed conductance for each layer
+        lak.bdlknc[layer] = flopy.utils.Util2d(
+            model=mf,  # Pass the model object
+            shape=(mf.dis.nrow, mf.dis.ncol),  # Shape of the array
+            dtype=np.float32,  # Data type
+            value=lakebed_conductance,  # Same value for each layer
+            name=f"bdlknc_layer_{layer}"  # Name of the array
+        )
+
+    
+    #  Write the updated model input files
+    mf.write_input()
+
+    # success, buff = flopy.mbase.run_model(
+    #     exe_name = os.path.join(model_ws, 'MF2005.exe'),
+    #     namefile = f'{model_name}.nam',
+    #     model_ws = model_ws,
+    #     silent = False #False to test the code, then switch to True
+    #     )
+
+     # Run the model
+    success, buff = mf.run_model(silent=True)
+
     if not success:
-        print(f"Model run failed for K = {k_value:.3e}")
-        inputs.append(k_value)
+        print(f"Model run failed for K = {kb:.3e}")
+        inputs.append(kb)
         flows.append(None)
         depths.append(None)
         continue
@@ -204,7 +223,7 @@ for k_value in hydraulic_conductivities:
     flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
     depth = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
     # Append k and flow
-    inputs.append(k_value)
+    inputs.append(kb)
     flows.append(flow)
     depths.append(depth)
 
@@ -218,4 +237,3 @@ print('Elapsed time (s): ', f'{(end-start).seconds}.{round((end-start).microseco
 df_results = pd.DataFrame({'k_value': inputs, 'flow': flows, 'depth':depths})
 df_results.to_excel(os.path.join(model_ws, 'lake_results.xlsx'))
 
-# %%
