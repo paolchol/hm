@@ -98,10 +98,10 @@ mf.drn.filenames = os.path.join(model_ws, f'{model_name}.drn')
 #%% # Define loop parameters
 
 # Define limits of hydraulic conductivity range and number of iterations
-ki = 0.01
-kf = 0.000001
-n = 10 #10 to test the code, then switch to 100
-step = np.linspace(ki,kf,n)
+# ki = 0.01
+# kf = 0.000001
+# n = 10 #10 to test the code, then switch to 100
+# step = np.linspace(ki,kf,n)
 
 k_dict = {
     'kt': [0.0001, 0.0003], 
@@ -120,38 +120,52 @@ START OF LOOP
 '''
 start = datetime.datetime.now()
 outputs = []
-for i in range(n):
-    k = step[i]
+cond = (drn_sp.row <= row_limit) & (drn_sp.column <= column_limit)
+m = 1
+drain_outflow_save = pd.DataFrame()
+for kt in k_dict['kt']:
     # Change conductance
-    conductance_change = (k*drn_sp.Width*drn_sp.Length)/drn_sp.Thickness
-    drn.conductance = round(conductance_change, 5)
+    drn_sp.loc[cond, 'Conductanc'] = (kt*drn_sp.loc[cond, 'Width']*drn_sp.loc[cond, 'Length'])/drn_sp.loc[cond, 'Thickness']
     stress_period_data = {0: drn.iloc[:, :-1].to_numpy().tolist()} #remove node column, not needed nor supported by flopy's ModflowDrn class
 
-    # Modify the drn package' stress period data
-    mf.drn.stress_period_data = stress_period_data
-    mf.drn.write_file(check = False)
+    for ka in k_dict['ka']:
+        drn_sp.loc[~cond, 'Conductanc'] = (ka*drn_sp.loc[~cond, 'Width']*drn_sp.loc[~cond, 'Length'])/drn_sp.loc[~cond, 'Thickness']
 
-    success, buff = mf.run_model(silent=True) #False to test the code, then switch to True
-    if not success:
-        raise Exception("MODFLOW did not terminate normally.")
-    
-    # Get drain values from cbb output
-    cbb = bf.CellBudgetFile(os.path.join(model_ws, f'{model_name}.cbb'))
-    drn_cbb = cbb.get_data(text = 'DRAINS')
+        drn.conductance = round(drn_sp.Conductanc, 5)
+        # Modify the drn package' stress period data
+        mf.drn.stress_period_data = stress_period_data
+        mf.drn.write_file(check = False)
 
-    # Sum the flux extracted from drain[0]
-    sum_drain = np.sum(drn_cbb[0][0, :row_limit+1, :column_limit+1])
-    sum_drain_tot = np.sum(drn_cbb[0][0, :,:])
+        success, buff = mf.run_model(silent=True) #False to test the code, then switch to True
+        if not success:
+            raise Exception("MODFLOW did not terminate normally.")
+        
+        # Get drain values from cbb output
+        cbb = bf.CellBudgetFile(os.path.join(model_ws, f'{model_name}.cbb'))
+        drn_cbb = cbb.get_data(text = 'DRAINS')
 
-    # Append the parameters to a list
-    outputs.append([k, sum_drain, sum_drain_tot])
+        # Sum the flux extracted from drain[0]
+        sum_drain = np.sum(drn_cbb[0][0, :row_limit+1, :column_limit+1])
+        sum_drain_tot = np.sum(drn_cbb[0][0, :,:])
+
+        # Save the outflow in every cell
+        drain_outflow = []
+        for r,c in zip(drn.row, drn.column):
+            drain_outflow.append(drn_cbb[0][0, r, c])
+        drain_outflow_save = pd.concat([drain_outflow_save, pd.DataFrame(drain_outflow)], axis=1)
+
+        # Append the parameters to a list
+        outputs.append([f'M{m}', kt, ka, sum_drain, sum_drain_tot])
+        m += 1
 end = datetime.datetime.now()
 
 print('Runs terminated')
-print('Number of runs: ', n)
-print('Elapsed time (s): ', f'{(end-start).seconds}.{round((end-start).microseconds*(10**-6),2)}')
+print('Number of runs: ', len(k_dict['kt'])*len(k_dict['ka']))
+print('Elapsed time (s): ',  f'{(end-start).seconds + round((end-start).microseconds*(10**-6),2)}')
 
-#%% Save to dataframe and export
+#%% # Save to dataframe and export
 
-df_results = pd.DataFrame(outputs, columns = ['k', 'drn_until_rc', 'drn_total'])
-df_results.to_excel(os.path.join(model_ws, 'drain_results.xlsx'))
+drain_outflow_save.columns = [f'M{i}' for i in range(1,len(k_dict['kt'])*len(k_dict['ka'])+1)]
+df_results = pd.DataFrame(outputs, columns = ['model', 'kt', 'ka', 'drn_until_rc', 'drn_total'])
+df_results.to_excel(os.path.join(model_ws, 'drain_results_multipar.xlsx'))
+drain_outflow_save.to_csv(os.path.join(model_ws, 'drain_outflow_multipar.csv'))
