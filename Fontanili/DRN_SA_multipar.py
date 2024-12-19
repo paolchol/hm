@@ -97,12 +97,7 @@ mf.drn.filenames = os.path.join(model_ws, f'{model_name}.drn')
 
 #%% # Define loop parameters
 
-# Define limits of hydraulic conductivity range and number of iterations
-# ki = 0.01
-# kf = 0.000001
-# n = 10 #10 to test the code, then switch to 100
-# step = np.linspace(ki,kf,n)
-
+# Define the hydraulic conductivities to be tested
 k_dict = {
     'kt': [0.0001, 0.0003], 
     'ka': [0.0003, 0.0005]
@@ -112,6 +107,11 @@ k_dict = {
 row_limit = 93
 column_limit = 76
 
+# Define the cell until the drain cells are considered as the "head" of the fontanile
+# to them, kt will be applied
+r_t = 93
+c_t = 76
+
 #%% # Loop
 # Loop to change conductance in the drain package, run the model and extract cbb results
 
@@ -120,7 +120,7 @@ START OF LOOP
 '''
 start = datetime.datetime.now()
 outputs = []
-cond = (drn_sp.row <= row_limit) & (drn_sp.column <= column_limit)
+cond = (drn_sp.row <= r_t) & (drn_sp.column <= c_t)
 m = 1
 drain_outflow_save = pd.DataFrame()
 for kt in k_dict['kt']:
