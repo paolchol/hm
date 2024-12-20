@@ -169,5 +169,5 @@ drain_outflow_save.columns = [f'M{i}' for i in range(1,len(k_dict['kt'])*len(k_d
 drain_outflow_save.insert(0, column = 'c', value = drn.column)
 drain_outflow_save.insert(0, column = 'r', value = drn.row)
 df_results = pd.DataFrame(outputs, columns = ['model', 'kt', 'ka', 'drn_until_rc', 'drn_total', 'drn_head'])
-df_results.to_excel(os.path.join(model_ws, 'drain_results_multipar.xlsx'))
-drain_outflow_save.to_csv(os.path.join(model_ws, 'drain_outflow_multipar.csv'))
+df_results.to_excel(os.path.join(model_ws, 'drain_results_multipar.xlsx'), index = False)
+drain_outflow_save.to_csv(os.path.join(model_ws, 'drain_outflow_multipar.csv'), index = False)
