@@ -86,7 +86,10 @@ def change_type(df, cols, t):
 #     check=False, 
 #     verbose=False
 # )
-mf = flopy.modflow.Modflow.load(f"{model_name}.nam", model_ws=model_ws, check=False)
+mf = flopy.modflow.Modflow.load(
+    f"{model_name}.nam", 
+    model_ws=model_ws, 
+    check=False)
 
 #%% Generate SFR with flopy
 # Load general parameters (item 1)
@@ -143,16 +146,14 @@ sfr.write_file()
 #%% Define loop parameters
 # Access LAK package
 lak = mf.lak
-
-# Define fixed parameters used to calculate the lakebed conductance
-lakebed_thickness = 0.5  
-
 lake_mask = lak.lakarr.array   # Extract lake mask array from lakarr
 lake_cells = np.argwhere(lake_mask[0] > 0)  # Find lake cells
 delr = mf.dis.delr.array  # 1D array of column widths
 delc = mf.dis.delc.array  # 1D array of row heights
-cell_area = np.outer(delc, delr)  # Shape: (nrow, ncol)
 
+# Define fixed parameters used to calculate the lakebed conductance
+lakebed_thickness = 0.5  
+cell_area = np.outer(delc, delr)  # Shape: (nrow, ncol)
 
 # Define limits of k as the variable parameter
 ki = 0.01
