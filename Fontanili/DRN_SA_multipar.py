@@ -147,6 +147,7 @@ for kt in k_dict['kt']:
         # Sum the flux extracted from drain[0]
         sum_drain = np.sum(drn_cbb[0][0, :row_limit+1, :column_limit+1])
         sum_drain_tot = np.sum(drn_cbb[0][0, :,:])
+        sum_drain_t = np.sum(drn_cbb[0][0, :r_t+1, :c_t+1])
 
         # Save the outflow in every cell
         drain_outflow = []
@@ -155,7 +156,7 @@ for kt in k_dict['kt']:
         drain_outflow_save = pd.concat([drain_outflow_save, pd.DataFrame(drain_outflow)], axis=1)
 
         # Append the parameters to a list
-        outputs.append([f'M{m}', kt, ka, sum_drain, sum_drain_tot])
+        outputs.append([f'M{m}', kt, ka, sum_drain, sum_drain_tot, sum_drain_t])
         m += 1
 end = datetime.datetime.now()
 
@@ -166,6 +167,8 @@ print('Elapsed time (s): ',  f'{(end-start).seconds + round((end-start).microsec
 #%% # Save to dataframe and export
 
 drain_outflow_save.columns = [f'M{i}' for i in range(1,len(k_dict['kt'])*len(k_dict['ka'])+1)]
-df_results = pd.DataFrame(outputs, columns = ['model', 'kt', 'ka', 'drn_until_rc', 'drn_total'])
+drain_outflow_save.insert(0, column = 'c', value = drn.column)
+drain_outflow_save.insert(0, column = 'r', value = drn.row)
+df_results = pd.DataFrame(outputs, columns = ['model', 'kt', 'ka', 'drn_until_rc', 'drn_total', 'drn_head'])
 df_results.to_excel(os.path.join(model_ws, 'drain_results_multipar.xlsx'))
 drain_outflow_save.to_csv(os.path.join(model_ws, 'drain_outflow_multipar.csv'))
