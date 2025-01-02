@@ -158,7 +158,7 @@ cell_area = np.outer(delc, delr)  # Shape: (nrow, ncol)
 # Define limits of k as the variable parameter
 ki = 0.01
 kf = 0.000001
-n = 5
+n = 2
 lakebed_ks = np.linspace(ki, kf, n)  # Define range of K values
 
 # Store results
@@ -179,37 +179,28 @@ start = datetime.datetime.now()
 lakebed_conductance = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
 
 for kb in lakebed_ks:
-    # Initialize lakebed conductance with zeros (2D array for each layer)
-    lakebed_conductance = np.zeros((mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
-
     # Calculate conductance only for lake cells (layer, row, column)
-    for row, col in lake_cells:
-        lakebed_conductance[row, col] = (kb * cell_area[row, col]) / lakebed_thickness
+    for lay, row, col in lake_cells:
+        lakebed_conductance[lay, row, col] = (kb * cell_area[row, col]) / lakebed_thickness
 
-    # Update bdlknc for each layer using Util2d
-    for layer in range(mf.dis.nlay):
-        # Create a Util2d object for the lakebed conductance for each layer
-        lak.bdlknc[layer] = flopy.utils.Util2d(
-            model=mf,  # Pass the model object
-            shape=(mf.dis.nrow, mf.dis.ncol),  # Shape of the array
-            dtype=np.float32,  # Data type
-            value=lakebed_conductance,  # Same value for each layer
-            name=f"bdlknc_layer_{layer}"  # Name of the array
+    # Update bdlknc for each layer using Util2d (i think i have to use util3d)
+    # for layer in range(mf.dis.nlay):
+        #layer_conductance = lakebed_conductance[layer, :, :]
+    # Create a Util3d object (util3d is for steady state models, it should work!)
+    # But it doesn't work because it needs to be a transient3d object (same as lakarr)
+    lak.bdlknc = flopy.utils.Transient3d(
+        model=mf,
+        shape=(mf.dis.nlay, mf.dis.nrow, mf.dis.ncol),  # Shape of the array
+        dtype=np.float32,
+        value=lakebed_conductance,  
+        name="bdlknc" #_layer_{layer} 
         )
-
-    
-    #  Write the updated model input files
-    mf.write_input()
-
-    # success, buff = flopy.mbase.run_model(
-    #     exe_name = os.path.join(model_ws, 'MF2005.exe'),
-    #     namefile = f'{model_name}.nam',
-    #     model_ws = model_ws,
-    #     silent = False #False to test the code, then switch to True
-    #     )
+  
+    #  Write the updated lak file (mf.write_input() returns the stress periods error)
+    lak.write_file()
 
      # Run the model
-    success, buff = mf.run_model(silent=True)
+    success, buff = mf.run_model(silent=False)
 
     if not success:
         print(f"Model run failed for K = {kb:.3e}")
@@ -238,3 +229,5 @@ print('Elapsed time (s): ', f'{(end-start).seconds}.{round((end-start).microseco
 df_results = pd.DataFrame({'k_value': inputs, 'flow': flows, 'depth':depths})
 df_results.to_excel(os.path.join(model_ws, 'lake_results.xlsx'))
 
+
+# %%
