@@ -23,10 +23,10 @@ lak_file = os.path.join(model_ws, "busca_base_infittito_apr24_sfr_icalc2_lake.la
 sfr_data = os.path.join(model_ws, 'busca_sfr_data_icalc2_lake.xlsx') # SFR characteristics
 model_name = "busca_base_infittito_apr24_sfr_icalc2_lake"
 
-# Backup the original LAK file
-backup_lak_file = lak_file + ".bak"
-if not os.path.exists(backup_lak_file):
-    shutil.copy(lak_file, backup_lak_file)
+# # Backup the original LAK file
+# backup_lak_file = lak_file + ".bak"
+# if not os.path.exists(backup_lak_file):
+#     shutil.copy(lak_file, backup_lak_file)
 
 # Define needed functions
 def load_streamflow_dat(f, nsp = 1):
@@ -86,6 +86,7 @@ def change_type(df, cols, t):
 #     check=False, 
 #     verbose=False
 # )
+
 mf = flopy.modflow.Modflow.load(
     f"{model_name}.nam", 
     model_ws=model_ws, 
@@ -209,7 +210,9 @@ for kb in lakebed_ks:
         depths.append(None)
         continue
 
+    # CHECK THIS!
     # Load the streamflow.dat file and extract the searched flow
+    # The streamflow.dat file is not being updated after each model run... why?
     f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
     df = load_streamflow_dat(f)
     flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
