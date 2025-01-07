@@ -2,11 +2,17 @@
 LAK - OPTION 2
 Script to run instances of a MODFLOW model simulating the head of a lowland spring using the LAK package
 
+- Writes the SFR package based on an excel file
 - Modifies the hydraulic contuctivity of .lak file
 - Runs the model
 - Exports the result as an .xlsx file
 
-Important: The SFR package has to be removed from the model and generated externally to avoid issues while loading it
+Important:
+Make sure these parameters are defined within the GWV model, if not, set them and create datasets again
+- Check MODFLOW 2000 Packages: the Cell-by-Cell Flow unit numbers have to be different for every package 
+  (LPF=50, LAK=60, SFR=55)
+- Check MODFLOW Options > Resaturation: make sure that the "Resaturation Capacity is Active" box is checked.
+  This allows us to use the "simple" formula for the calculation of the lakebed conductance.
 
 '''
 #%% Setup
@@ -22,11 +28,6 @@ model_ws = os.path.join(cwd,"LAKE-2")  # Folder containing the model
 lak_file = os.path.join(model_ws, "busca_base_infittito_apr24_sfr_icalc2_lake.lak")
 sfr_data = os.path.join(model_ws, 'busca_sfr_data_icalc2_lake.xlsx') # SFR characteristics
 model_name = "busca_base_infittito_apr24_sfr_icalc2_lake"
-
-# # Backup the original LAK file
-# backup_lak_file = lak_file + ".bak"
-# if not os.path.exists(backup_lak_file):
-#     shutil.copy(lak_file, backup_lak_file)
 
 # Define needed functions
 def load_streamflow_dat(f, nsp = 1):
@@ -79,20 +80,16 @@ def change_type(df, cols, t):
         df[col] = df[col].astype(t)
     return df
 
-# #  Load the model
-# mf = flopy.modflow.Modflow(
-#     modelname = model_name, 
-#     model_ws=model_ws, 
-#     check=False, 
-#     verbose=False
-# )
-
-mf = flopy.modflow.Modflow.load(
-    f"{model_name}.nam", 
-    model_ws=model_ws, 
-    check=False)
 
 #%% Generate SFR with flopy
+
+# Create a model object just to write the SFR package
+mf = flopy.modflow.Modflow(
+    modelname = model_name, 
+    model_ws=model_ws, 
+    check=False, 
+    verbose=False
+)
 # Load general parameters (item 1)
 it1 = pd.read_excel(sfr_data, sheet_name = 'ITEM1')
 
@@ -145,6 +142,13 @@ sfr = flopy.modflow.ModflowSfr2(
 sfr.write_file()
 
 #%% Define loop parameters
+
+# Load the model now that SFR has been written
+mf = flopy.modflow.Modflow.load(
+    f"{model_name}.nam", 
+    model_ws=model_ws, 
+    check=False)
+
 # Access LAK package
 lak = mf.lak
 lake_mask = lak.lakarr.array   # Extract lake mask array from lakarr
@@ -161,6 +165,12 @@ ki = 0.01
 kf = 0.000001
 n = 2
 lakebed_ks = np.linspace(ki, kf, n)  # Define range of K values
+
+#consider doing something like this
+# k_dict = {
+#     'kt': [0.0001, 0.0003], 
+#     'ka': [0.0003, 0.0005]
+# }
 
 # Store results
 inputs = []
@@ -179,28 +189,28 @@ LOOP
 start = datetime.datetime.now()
 lakebed_conductance = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
 
+#maybe use a dictionary instead of the np array
 for kb in lakebed_ks:
     # Calculate conductance only for lake cells (layer, row, column)
     for lay, row, col in lake_cells:
         lakebed_conductance[lay, row, col] = (kb * cell_area[row, col]) / lakebed_thickness
 
-    # Update bdlknc for each layer using Util2d (i think i have to use util3d)
-    # for layer in range(mf.dis.nlay):
-        #layer_conductance = lakebed_conductance[layer, :, :]
-    # Create a Util3d object (util3d is for steady state models, it should work!)
-    # But it doesn't work because it needs to be a transient3d object (same as lakarr)
-    lak.bdlknc = flopy.utils.Transient3d(
+    # Update bdlknc for each layer
+    lak.bdlknc = flopy.utils.Transient3d(               # BDLKNC needs to be a transient3d object (same as lakarr)
         model=mf,
         shape=(mf.dis.nlay, mf.dis.nrow, mf.dis.ncol),  # Shape of the array
         dtype=np.float32,
         value=lakebed_conductance,  
-        name="bdlknc" #_layer_{layer} 
+        name="bdlknc"
         )
   
     #  Write the updated lak file (mf.write_input() returns the stress periods error)
     lak.write_file()
 
-     # Run the model
+    #For ka in SFR_ka array, change the k of the SFR
+
+
+    # Run the model
     success, buff = mf.run_model(silent=False)
 
     if not success:
@@ -210,9 +220,9 @@ for kb in lakebed_ks:
         depths.append(None)
         continue
 
-    # CHECK THIS!
     # Load the streamflow.dat file and extract the searched flow
-    # The streamflow.dat file is not being updated after each model run... why?
+    # add the rows that read the whole thing in SFR_SA_multipar (in run function)
+
     f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
     df = load_streamflow_dat(f)
     flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
