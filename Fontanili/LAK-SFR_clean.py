@@ -1,11 +1,13 @@
 '''
-LAK - OPTION 2
-Script to run instances of a MODFLOW model simulating the head of a lowland spring using the LAK package
+LAK+SFR
+Script to run instances of a MODFLOW model simulating a lowland spring using the LAK package for the "testa"
+and the SFR package for the "asta"
 
 - Writes the SFR package based on an excel file
-- Modifies the hydraulic contuctivity of .lak file
+- Modifies the hydraulic conductivity of .lak file (lakebed conductance package)
+- Modifies the hydraulic conductivity of the .sfr file
 - Runs the model
-- Exports the result as an .xlsx file
+- Exports the results as an .csv file
 
 Important:
 Make sure these parameters are defined within the GWV model, if not, set them and create datasets again
@@ -13,6 +15,9 @@ Make sure these parameters are defined within the GWV model, if not, set them an
   (LPF=50, LAK=60, SFR=55)
 - Check MODFLOW Options > Resaturation: make sure that the "Resaturation Capacity is Active" box is checked.
   This allows us to use the "simple" formula for the calculation of the lakebed conductance.
+- Create datasets from GWV!   
+- The executable MF2005.exe has to be inside the working directory
+- An empty folder named "run_output" has to be created inside the working directory (to store results)
 
 '''
 #%% Setup
@@ -21,8 +26,6 @@ import datetime
 import numpy as np
 import pandas as pd
 import flopy
-import shutil
-import math
 import pickle
 
 # Define needed functions
@@ -225,87 +228,39 @@ mf = flopy.modflow.Modflow.load(
 
 # Access LAK package
 lak = mf.lak
+lak.nssitr = 10
+lak.sscncr = 0.001
 lake_mask = lak.lakarr.array   # Extract lake mask array from lakarr
 lake_cells = np.argwhere(lake_mask[0] > 0)  # Find lake cells
 delr = mf.dis.delr.array  # 1D array of column widths
 delc = mf.dis.delc.array  # 1D array of row heights
 
+
+import flopy
+m = flopy.modflow.Modflow()
+
+# lak = flopy.modflow.ModflowLak.load(f = lak_file, model = m, nper = 1)
+# external dictionary needed!!!
+# https://flopy.readthedocs.io/en/3.3.5/_modules/flopy/modflow/mflak.html#ModflowLak.load
+
 # Define fixed parameters used to calculate the lakebed conductance
 lakebed_thickness = 0.5  
-cell_area = np.outer(delc, delr)  # Shape: (nrow, ncol)
+cell_area = 9  # Shape: (nrow, ncol)
 
 # Define limits of k as the variable parameter
-# ki = 0.01
-# kf = 0.000001
-# n = 2
-# lakebed_ks = np.linspace(ki, kf, n)  # Define range of K values
-
-#consider doing something like this
 lakebed_ks = {
-    'kb': [0.0001, 0.003]
+    'kb': [0.0003]
 }
-
-# Store results
-# inputs = []
-# flows = []
-# depths = []
 
 #%%
-# Define SFR loop parameters
-
-# WE JUST NEED TO DEFINE THE ASTA PARS RIGHT?
-
-# Define the type of SFR structure
-# 2SEG: 1 segment, the "testa" (the "head" of the fontanile) and the "asta" (the channel of the fontanile) are specified by the reach number in reach_t
-# nSEG: n segments, one for the "testa", multiple for the "asta"
-# sfr_type = '2SEG'
-# sfr_type = 'nSEG'
-
-# Define the segment number of the "testa" and the number of segments of the "asta"
-# # seg_t = 1               # segment number
-# seg_a = [1,2,3,4,5,6,7] # number of segments of the asta
-# tseg = True             # True: the "head" takes the whole seg_t, False: the "head" takes a subset of seg_t, specify the reaches of the "head" in reach_t
-# reach_t = 9             # reach number of the last reach of the "head"
-
-## CHANGE NEEDED IF DIFFERENT NUMBER OF SEGMENTS ##
-# If you have a different number of segments, you will have to change some rows in the Loop section
-# Go to line 332 for explanation
-
-# Define hydraulic conductivity parameter dictionary
-# kt = t is "testa", the "head" of the fontanile
-# ka = a is "asta", the channel of the fontanile
-# 
-# kt: a list containing the values to test
-# ka: a list containing the values to test
+# Define SFR loop parameters (relative to the asta with multiple segments, sfr_type = 'nSEG')
+# No need to change the slope (negligible)
+# ka => a is "asta", the channel of the fontanile
+# ka : a list containing the values to test
 
 k_dict = {
-    'ka': [0.0003, 0.0005]
+    'ka': [0.00001]
 }
-
-# Define slope parameter dictionary
-# st = t is "testa", the "head" of the fontanile
-# sa = a is "asta", the channel of the fontanile
-# 
-# st: a list containing the values to test
-# sa:
-#   if sfr_type == '2SEG', a list containing the values to test
-#   if sfr_type == 'nSEG', a list containing n lists with the values to test
-
-# s_dict = {
-#     'st': [0.0001, 0.00003],
-#     'sa': [0.0003, 0.00005]
-# }
-
-# s_dict = {
-#     'st': [0.0001, 0.00003],
-#     'sa': [[0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005]]
-# }
 
 silent = False # True: the MODFLOW runs will not be printed in the terminal
 
@@ -321,8 +276,8 @@ print(f'- Approximately {n*0.5} s will be needed ({n*0.5/(60*60*24)} days)')
 # DOUBLE-CHECK THIS!
 
 # Define reach and segment from where to get the reach flow
-reach = 63
-segment = 1
+reach = 1
+segment = 2
 
 # Define the target values for flow and depth
 flow_target = 0.019  # m3/s
@@ -336,14 +291,7 @@ LOOP
 start = datetime.datetime.now()
 lakebed_conductance = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
 
-# # Calculate the number of runs
-# n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*math.prod([len(s_dict['sa'][x]) for x in range(len(s_dict['sa']))])
-# print(f'{n} runs will be performed')
-
-#maybe use a dictionary instead of the np array
-
 # Initialize needed variables
-
 params_save = []
 flow_save, depth_save, flowaq_save = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
@@ -354,7 +302,7 @@ for kb in lakebed_ks['kb']:
     
     # Calculate conductance only for lake cells (layer, row, column)
     for lay, row, col in lake_cells:
-        lakebed_conductance[lay, row, col] = (kb * cell_area[row, col]) / lakebed_thickness
+        lakebed_conductance[lay, row, col] = kb/ lakebed_thickness
 
     # Update bdlknc for each layer
     lak.bdlknc = flopy.utils.Transient3d(               # BDLKNC needs to be a transient3d object (same as lakarr)
@@ -368,25 +316,11 @@ for kb in lakebed_ks['kb']:
     #  Write the updated lak file (mf.write_input() returns the stress periods error)
     lak.write_file()
 
-    #For ka in SFR_ka array, change the k of the SFR
-    # Assuming nSEG only --> Multiple segments for asta
-    # We just need to change the asta values as the testa is the LAKE
+    # Loop to change the k asta values as the testa is the LAKE
 
-    # for kt in k_dict['kt']:
-    #     # Transform reach_data to a pandas.DataFrame
-        
-    #     # Change hydraulic conductivity and slope in the segments
-    #     if not tseg:
-    #                 tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'strhc1'] = kt
-    #     else:
-    #         tool.loc[tool.iseg == seg_t, 'strhc1'] = kt
-        
-    #     # SO THE LOOP WOULD START HERE ?
     for ka in k_dict['ka']:
         tool = pd.DataFrame(reach_data).copy()
         tool.loc[:, 'strhc1'] = ka
-        
-
         params = [f'M{i}', kb, ka]
         params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
                                                                 params, params_save, flow_save, depth_save,
@@ -399,28 +333,6 @@ reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
 save(i, j, columns, params_save, flow_target,
         depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
         save_100 = False)
-
-    # # Run the model
-    # success, buff = mf.run_model(silent=False)
-
-    # if not success:
-    #     print(f"Model run failed for K = {kb:.3e}")
-    #     inputs.append(kb)
-    #     flows.append(None)
-    #     depths.append(None)
-    #     continue
-
-    # Load the streamflow.dat file and extract the searched flow
-    # # add the rows that read the whole thing in SFR_SA_multipar (in run function)
-
-    # f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
-    # df = load_streamflow_dat(f)
-    # flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
-    # depth = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
-    # # Append k and flow
-    # inputs.append(kb)
-    # flows.append(flow)
-    # depths.append(depth)
 
 end = datetime.datetime.now()
 
