@@ -25,12 +25,6 @@ import shutil
 import math
 import pickle
 
-cwd = "d:\Claudia\MAURICE" # Local directory
-model_ws = os.path.join(cwd,"LAKE_SFR")  # Folder containing the model
-lak_file = os.path.join(model_ws, "busca_base_infittito_apr24_sfr_icalc2_lake.lak")
-sfr_data = os.path.join(model_ws, 'busca_sfr_data_icalc2_lake.xlsx') # SFR characteristics
-model_name = "busca_base_infittito_apr24_sfr_icalc2_lake"
-
 # Define needed functions
 def load_streamflow_dat(f, nsp = 1):
     """
@@ -95,7 +89,7 @@ def run(i, j, tool, model_ws, model_name, params, params_save,
                 exe_name = os.path.join(model_ws, 'MF2005.exe'),
                 namefile = f'{model_name}.nam',
                 model_ws = model_ws,
-                silent = True #False to test the code, then switch to True
+                silent = silent #False to test the code, then switch to True
                 )
     if not success:
         print(params)
@@ -106,10 +100,11 @@ def run(i, j, tool, model_ws, model_name, params, params_save,
 
     # Extract flow and depth in the target reach
     f = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
+    fin = df.loc[(df.ireach == 1) & (df.iseg == 1), 'flow_into_reach'].values[0]
     d = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
 
     # Update the output structures
-    params_save.append(params + [f,d])
+    params_save.append(params + [f,d,fin])
     # Extract flow and depth in all reaches and add them to the output structures
     flow_save = pd.concat([flow_save, df.flow_out_reach], axis=1)
     depth_save = pd.concat([depth_save, df.stream_depth], axis=1)
@@ -151,6 +146,14 @@ def save(i, j, columns, params_save, flow_target, depth_target,
     flow_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_flow_out_reach_M{i-1}.csv'), index = False)
     depth_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_depth_M{i-1}.csv'), index = False)
     flowaq_save.to_csv(os.path.join(model_ws, 'run_output', f'sfr_reach_flow_to_aquifer_M{i-1}.csv'), index = False)
+
+#%% Define paths
+
+cwd = "d:\Claudia\MAURICE" # Local directory
+model_ws = os.path.join(cwd,"LAKE_SFR")  # Folder containing the model
+lak_file = os.path.join(model_ws, "busca_base_infittito_apr24_sfr_icalc2_lake.lak")
+sfr_data = os.path.join(model_ws, 'busca_sfr_data_icalc2_lake.xlsx') # SFR characteristics
+model_name = "busca_base_infittito_apr24_sfr_icalc2_lake"
 
 #%% Generate SFR with flopy
 
@@ -232,21 +235,20 @@ lakebed_thickness = 0.5
 cell_area = np.outer(delc, delr)  # Shape: (nrow, ncol)
 
 # Define limits of k as the variable parameter
-ki = 0.01
-kf = 0.000001
-n = 2
-lakebed_ks = np.linspace(ki, kf, n)  # Define range of K values
+# ki = 0.01
+# kf = 0.000001
+# n = 2
+# lakebed_ks = np.linspace(ki, kf, n)  # Define range of K values
 
 #consider doing something like this
-# k_dict = {
-#     'kt': [0.0001, 0.0003], 
-#     'ka': [0.0003, 0.0005]
-# }
+lakebed_ks = {
+    'kb': [0.0001, 0.003]
+}
 
 # Store results
-inputs = []
-flows = []
-depths = []
+# inputs = []
+# flows = []
+# depths = []
 
 #%%
 # Define SFR loop parameters
@@ -257,13 +259,13 @@ depths = []
 # 2SEG: 1 segment, the "testa" (the "head" of the fontanile) and the "asta" (the channel of the fontanile) are specified by the reach number in reach_t
 # nSEG: n segments, one for the "testa", multiple for the "asta"
 # sfr_type = '2SEG'
-sfr_type = 'nSEG'
+# sfr_type = 'nSEG'
 
 # Define the segment number of the "testa" and the number of segments of the "asta"
-seg_t = 1               # segment number
-seg_a = [1,2,3,4,5,6,7] # number of segments of the asta
-tseg = True             # True: the "head" takes the whole seg_t, False: the "head" takes a subset of seg_t, specify the reaches of the "head" in reach_t
-reach_t = 9             # reach number of the last reach of the "head"
+# # seg_t = 1               # segment number
+# seg_a = [1,2,3,4,5,6,7] # number of segments of the asta
+# tseg = True             # True: the "head" takes the whole seg_t, False: the "head" takes a subset of seg_t, specify the reaches of the "head" in reach_t
+# reach_t = 9             # reach number of the last reach of the "head"
 
 ## CHANGE NEEDED IF DIFFERENT NUMBER OF SEGMENTS ##
 # If you have a different number of segments, you will have to change some rows in the Loop section
@@ -277,7 +279,6 @@ reach_t = 9             # reach number of the last reach of the "head"
 # ka: a list containing the values to test
 
 k_dict = {
-    'kt': [0.0001, 0.0003], 
     'ka': [0.0003, 0.0005]
 }
 
@@ -295,23 +296,20 @@ k_dict = {
 #     'sa': [0.0003, 0.00005]
 # }
 
-s_dict = {
-    'st': [0.0001, 0.00003],
-    'sa': [[0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005],
-           [0.0003, 0.00005]]
-}
+# s_dict = {
+#     'st': [0.0001, 0.00003],
+#     'sa': [[0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005],
+#            [0.0003, 0.00005]]
+# }
 
-silent = True # True: the MODFLOW runs will not be printed in the terminal
+silent = False # True: the MODFLOW runs will not be printed in the terminal
 
-if sfr_type == '2SEG':
-    n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*len(s_dict['sa'])
-if sfr_type == 'nSEG':
-    n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*math.prod([len(s_dict['sa'][x]) for x in range(len(s_dict['sa']))])
+n = len(lakebed_ks['kb'])*len(k_dict['ka'])
 
 print('Based on the parameters set:\n')
 print('- ' + str(n) + ' runs will be executed')
@@ -322,14 +320,13 @@ print(f'- Approximately {n*0.5} s will be needed ({n*0.5/(60*60*24)} days)')
 
 # DOUBLE-CHECK THIS!
 
-
 # Define reach and segment from where to get the reach flow
 reach = 63
 segment = 1
 
 # Define the target values for flow and depth
-flow_target = 0.0506  # m3/s
-depth_target = 0.40   # m
+flow_target = 0.019  # m3/s
+depth_target = 0.20   # m
 
 #%% LOOP
 '''
@@ -339,8 +336,22 @@ LOOP
 start = datetime.datetime.now()
 lakebed_conductance = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
 
+# # Calculate the number of runs
+# n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*math.prod([len(s_dict['sa'][x]) for x in range(len(s_dict['sa']))])
+# print(f'{n} runs will be performed')
+
 #maybe use a dictionary instead of the np array
-for kb in lakebed_ks:
+
+# Initialize needed variables
+
+params_save = []
+flow_save, depth_save, flowaq_save = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+columns = ['m_code', 'kb','ka', 'flow_out_reach', 'stream_depth', 'flow_into_reach']
+
+i, j = 1, 1
+for kb in lakebed_ks['kb']:
+    
     # Calculate conductance only for lake cells (layer, row, column)
     for lay, row, col in lake_cells:
         lakebed_conductance[lay, row, col] = (kb * cell_area[row, col]) / lakebed_thickness
@@ -361,102 +372,62 @@ for kb in lakebed_ks:
     # Assuming nSEG only? Multiple segments for asta
     # We just need to change the asta values as the testa is the LAKE - CONFIRM
 
-     # Calculate the number of runs
-    n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*math.prod([len(s_dict['sa'][x]) for x in range(len(s_dict['sa']))])
-    print(f'{n} runs will be performed')
-
-    # Initialize needed variables
-    i, j = 1, 1
-    params_save = []
-    flow_save, depth_save, flowaq_save = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
-    columns = ['m_code', 'kt','ka', 'st'] + [f'sa{x}' for x in range(1, len(seg_a)+1)] + ['flow_out_reach', 'stream_depth']
-
-    for kt in k_dict['kt']:
-        # Transform reach_data to a pandas.DataFrame
-        tool = pd.DataFrame(reach_data).copy()
-        # Change hydraulic conductivity and slope in the segments
-        if not tseg:
-                    tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'strhc1'] = kt
-        else:
-            tool.loc[tool.iseg == seg_t, 'strhc1'] = kt
-        
-        # SO THE LOOP WOULD START HERE ?
-        for ka in k_dict['ka']:
-            tool.loc[tool.iseg != seg_t, 'strhc1'] = ka
-            if not tseg:
-                tool.loc[(tool.iseg == seg_t) & (tool.ireach > reach_t), 'strhc1'] = ka
-            for st in s_dict['st']:
-                if not tseg:
-                    tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'slope'] = st
-                else:
-                    tool.loc[tool.iseg == seg_t, 'slope'] = st
-                ## CHANGE NEEDED BELOW ## 
-                # The following for loops will have to be incremented or decreased based of the number
-                # of segments in seg_a (and the number of lists seg_dict['sa'])
-                for sa1 in s_dict['sa'][0]:
-                    if seg_a[0] == seg_t and not tseg:
-                        tool.loc[(tool.iseg == seg_a[0]) & (tool.ireach > reach_t), 'slope'] = sa1
-                    else:
-                        tool.loc[tool.iseg == seg_a[0], 'slope'] = sa1
-                    for sa2 in s_dict['sa'][1]:
-                        tool.loc[tool.iseg == seg_a[1], 'slope'] = sa2
-                        for sa3 in s_dict['sa'][2]:
-                            tool.loc[tool.iseg == seg_a[2], 'slope'] = sa3
-                            for sa4 in s_dict['sa'][3]:
-                                tool.loc[tool.iseg == seg_a[3], 'slope'] = sa4
-                                for sa5 in s_dict['sa'][4]:
-                                    tool.loc[tool.iseg == seg_a[4], 'slope'] = sa5                                    
-                                    for sa6 in s_dict['sa'][5]:
-                                        tool.loc[tool.iseg == seg_a[5], 'slope'] = sa6
-                                        for sa7 in s_dict['sa'][6]:
-                                            tool.loc[tool.iseg == seg_a[6], 'slope'] = sa7
-
-                                            sas = [st, sa1, sa2, sa3, sa4, sa5, sa6, sa7] # slopes assigned to the segments
-                                            params = [f'M{i}', kt, ka] + sas
-                                            params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
-                                                                                                    params, params_save, flow_save, depth_save,
-                                                                                                    flow_target, depth_target, columns, flowaq_save)
-                                            # Progress the counter to generate the model code
-                                            i += 1
     
-    # Save the results
-    reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
-    save(i, j, columns, params_save, flow_target,
-            depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
-            save_100 = False)
 
-    # Run the model
-    success, buff = mf.run_model(silent=False)
 
-    if not success:
-        print(f"Model run failed for K = {kb:.3e}")
-        inputs.append(kb)
-        flows.append(None)
-        depths.append(None)
-        continue
+
+    # for kt in k_dict['kt']:
+    #     # Transform reach_data to a pandas.DataFrame
+        
+    #     # Change hydraulic conductivity and slope in the segments
+    #     if not tseg:
+    #                 tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'strhc1'] = kt
+    #     else:
+    #         tool.loc[tool.iseg == seg_t, 'strhc1'] = kt
+        
+    #     # SO THE LOOP WOULD START HERE ?
+    for ka in k_dict['ka']:
+        tool = pd.DataFrame(reach_data).copy()
+        tool.loc[:, 'strhc1'] = ka
+        
+
+        params = [f'M{i}', kb, ka]
+        params_save, flow_save, depth_save, flowaq_save, j = run(i, j, tool, model_ws, model_name,
+                                                                params, params_save, flow_save, depth_save,
+                                                                flow_target, depth_target, columns, flowaq_save)
+        # Progress the counter to generate the model code
+        i += 1
+
+# Save the results
+reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
+save(i, j, columns, params_save, flow_target,
+        depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
+        save_100 = False)
+
+    # # Run the model
+    # success, buff = mf.run_model(silent=False)
+
+    # if not success:
+    #     print(f"Model run failed for K = {kb:.3e}")
+    #     inputs.append(kb)
+    #     flows.append(None)
+    #     depths.append(None)
+    #     continue
 
     # Load the streamflow.dat file and extract the searched flow
-    # add the rows that read the whole thing in SFR_SA_multipar (in run function)
+    # # add the rows that read the whole thing in SFR_SA_multipar (in run function)
 
-    f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
-    df = load_streamflow_dat(f)
-    flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
-    depth = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
-    # Append k and flow
-    inputs.append(kb)
-    flows.append(flow)
-    depths.append(depth)
+    # f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
+    # df = load_streamflow_dat(f)
+    # flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
+    # depth = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
+    # # Append k and flow
+    # inputs.append(kb)
+    # flows.append(flow)
+    # depths.append(depth)
 
 end = datetime.datetime.now()
 
 print('Runs terminated')
 print('Number of runs: ', n)
 print('Elapsed time (s): ', f'{(end-start).seconds}.{round((end-start).microseconds*(10**-6),2)}')
-
-#%% Save to dataframe and export
-df_results = pd.DataFrame({'k_value': inputs, 'flow': flows, 'depth':depths})
-df_results.to_excel(os.path.join(model_ws, 'lake_results.xlsx'))
-
-
-# %%
