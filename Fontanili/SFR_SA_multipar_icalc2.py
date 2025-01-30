@@ -203,6 +203,14 @@ segment_data.columns = [x.lower() for x in segment_data.columns]
 segment_data = segment_data.loc[:,:].to_records(index = False)
 segment_data = {0: segment_data}
 
+# load channel geometry data (item 6d)
+it6d = pd.read_excel(sfr_data, sheet_name = 'ITEM6d')
+geom_data = {}
+for seg in it6d.segment.unique():
+    tool = it6d.loc[it6d.segment == seg, [f'v{i}' for i in range(1,9)]].to_numpy().copy()
+    geom_data[int(seg)] = [tool[0].tolist(), tool[1].tolist()]
+geom_data = {0: geom_data}
+
 # Generate the SFR package through flopy
 unit_number = 27 # define this based on the model
 
@@ -219,7 +227,8 @@ sfr = flopy.modflow.ModflowSfr2(
     unit_number = unit_number,
     isfropt = it1.ISFROPT.values[0],
     segment_data = segment_data,
-    reach_data=reach_data
+    reach_data=reach_data,
+    channel_geometry_data=geom_data
 )
 
 #%% # Define loop parameters 
