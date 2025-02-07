@@ -234,42 +234,13 @@ delc = mf.dis.delc.array  # 1D array of row heights
 lakebed_thickness = 0.5  
 cell_area = np.outer(delc, delr)  # Shape: (nrow, ncol)
 
-# Define limits of k as the variable parameter
-# ki = 0.01
-# kf = 0.000001
-# n = 2
-# lakebed_ks = np.linspace(ki, kf, n)  # Define range of K values
-
 #consider doing something like this
 lakebed_ks = {
     'kb': [0.0001, 0.003]
 }
 
-# Store results
-# inputs = []
-# flows = []
-# depths = []
-
 #%%
 # Define SFR loop parameters
-
-# WE JUST NEED TO DEFINE THE ASTA PARS RIGHT?
-
-# Define the type of SFR structure
-# 2SEG: 1 segment, the "testa" (the "head" of the fontanile) and the "asta" (the channel of the fontanile) are specified by the reach number in reach_t
-# nSEG: n segments, one for the "testa", multiple for the "asta"
-# sfr_type = '2SEG'
-# sfr_type = 'nSEG'
-
-# Define the segment number of the "testa" and the number of segments of the "asta"
-# # seg_t = 1               # segment number
-# seg_a = [1,2,3,4,5,6,7] # number of segments of the asta
-# tseg = True             # True: the "head" takes the whole seg_t, False: the "head" takes a subset of seg_t, specify the reaches of the "head" in reach_t
-# reach_t = 9             # reach number of the last reach of the "head"
-
-## CHANGE NEEDED IF DIFFERENT NUMBER OF SEGMENTS ##
-# If you have a different number of segments, you will have to change some rows in the Loop section
-# Go to line 332 for explanation
 
 # Define hydraulic conductivity parameter dictionary
 # kt = t is "testa", the "head" of the fontanile
@@ -282,31 +253,6 @@ k_dict = {
     'ka': [0.0003, 0.0005]
 }
 
-# Define slope parameter dictionary
-# st = t is "testa", the "head" of the fontanile
-# sa = a is "asta", the channel of the fontanile
-# 
-# st: a list containing the values to test
-# sa:
-#   if sfr_type == '2SEG', a list containing the values to test
-#   if sfr_type == 'nSEG', a list containing n lists with the values to test
-
-# s_dict = {
-#     'st': [0.0001, 0.00003],
-#     'sa': [0.0003, 0.00005]
-# }
-
-# s_dict = {
-#     'st': [0.0001, 0.00003],
-#     'sa': [[0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005],
-#            [0.0003, 0.00005]]
-# }
-
 silent = False # True: the MODFLOW runs will not be printed in the terminal
 
 n = len(lakebed_ks['kb'])*len(k_dict['ka'])
@@ -318,10 +264,8 @@ print(f'- Approximately {n*0.5} s will be needed ({n*0.5/(60*60*24)} days)')
 #%%
 # General loop parameters
 
-# DOUBLE-CHECK THIS!
-
 # Define reach and segment from where to get the reach flow
-reach = 63
+reach = 63 # it is not the right reach
 segment = 1
 
 # Define the target values for flow and depth
@@ -334,16 +278,9 @@ LOOP
 '''
 # Modify lakebed conductance value based on different k values
 start = datetime.datetime.now()
-lakebed_conductance = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
-
-# # Calculate the number of runs
-# n = len(k_dict['kt'])*len(k_dict['ka'])*len(s_dict['st'])*math.prod([len(s_dict['sa'][x]) for x in range(len(s_dict['sa']))])
-# print(f'{n} runs will be performed')
-
-#maybe use a dictionary instead of the np array
 
 # Initialize needed variables
-
+lakebed_conductance = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float32)
 params_save = []
 flow_save, depth_save, flowaq_save = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
@@ -368,20 +305,6 @@ for kb in lakebed_ks['kb']:
     #  Write the updated lak file (mf.write_input() returns the stress periods error)
     lak.write_file()
 
-    #For ka in SFR_ka array, change the k of the SFR
-    # Assuming nSEG only --> Multiple segments for asta
-    # We just need to change the asta values as the testa is the LAKE
-
-    # for kt in k_dict['kt']:
-    #     # Transform reach_data to a pandas.DataFrame
-        
-    #     # Change hydraulic conductivity and slope in the segments
-    #     if not tseg:
-    #                 tool.loc[(tool.iseg == seg_t) & (tool.ireach <= reach_t), 'strhc1'] = kt
-    #     else:
-    #         tool.loc[tool.iseg == seg_t, 'strhc1'] = kt
-        
-    #     # SO THE LOOP WOULD START HERE ?
     for ka in k_dict['ka']:
         tool = pd.DataFrame(reach_data).copy()
         tool.loc[:, 'strhc1'] = ka
@@ -399,28 +322,6 @@ reach_data = tool.loc[:,:].to_records(index = False) # just to print reaches
 save(i, j, columns, params_save, flow_target,
         depth_target, flow_save, depth_save, reach_data, model_ws, flowaq_save,
         save_100 = False)
-
-    # # Run the model
-    # success, buff = mf.run_model(silent=False)
-
-    # if not success:
-    #     print(f"Model run failed for K = {kb:.3e}")
-    #     inputs.append(kb)
-    #     flows.append(None)
-    #     depths.append(None)
-    #     continue
-
-    # Load the streamflow.dat file and extract the searched flow
-    # # add the rows that read the whole thing in SFR_SA_multipar (in run function)
-
-    # f = os.path.join(model_ws, f'{model_name}_streamflow.dat')
-    # df = load_streamflow_dat(f)
-    # flow = df.loc[(df.ireach == reach) & (df.iseg == segment), 'flow_out_reach'].values[0]
-    # depth = df.loc[(df.ireach == reach) & (df.iseg == segment), 'stream_depth'].values[0]
-    # # Append k and flow
-    # inputs.append(kb)
-    # flows.append(flow)
-    # depths.append(depth)
 
 end = datetime.datetime.now()
 
