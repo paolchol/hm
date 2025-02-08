@@ -1,9 +1,11 @@
 '''
-LAK - OPTION 2
+LAK + SFR
 Script to run instances of a MODFLOW model simulating the head of a lowland spring using the LAK package
+and the channel of the spring using the SFR package
 
 - Writes the SFR package based on an excel file
-- Modifies the hydraulic contuctivity of .lak file
+- Modifies the hydraulic conductivity of .lak file (lakebed conductance package)
+- Modifies the hydraulic conductivity of the .sfr file
 - Runs the model
 - Exports the result as an .xlsx file
 
@@ -11,8 +13,10 @@ Important:
 Make sure these parameters are defined within the GWV model, if not, set them and create datasets again
 - Check MODFLOW 2000 Packages: the Cell-by-Cell Flow unit numbers have to be different for every package 
   (LPF=50, LAK=60, SFR=55)
-- Check MODFLOW Options > Resaturation: make sure that the "Resaturation Capacity is Active" box is checked.
+- Check MODFLOW Options -> Resaturation: make sure that the "Resaturation Capacity is Active" box is checked.
   This allows us to use the "simple" formula for the calculation of the lakebed conductance.
+- The executable MF2005.exe has to be inside the working directory
+- An empty folder named "run_output" has to be created inside the working directory (to store results)
 
 '''
 #%% Setup
@@ -232,7 +236,7 @@ delc = mf.dis.delc.array  # 1D array of row heights
 
 # Define fixed parameters used to calculate the lakebed conductance
 lakebed_thickness = 0.5  
-cell_area = np.outer(delc, delr)  # Shape: (nrow, ncol)
+cell_area = 9
 
 #consider doing something like this
 lakebed_ks = {
@@ -243,11 +247,8 @@ lakebed_ks = {
 # Define SFR loop parameters
 
 # Define hydraulic conductivity parameter dictionary
-# kt = t is "testa", the "head" of the fontanile
-# ka = a is "asta", the channel of the fontanile
-# 
-# kt: a list containing the values to test
-# ka: a list containing the values to test
+# ka =  a list containing the values to test
+# relative to the channel of the fontanile (lowland spring)
 
 k_dict = {
     'ka': [0.0003, 0.0005]
@@ -265,8 +266,8 @@ print(f'- Approximately {n*0.5} s will be needed ({n*0.5/(60*60*24)} days)')
 # General loop parameters
 
 # Define reach and segment from where to get the reach flow
-reach = 63 # it is not the right reach
-segment = 1
+reach = 1
+segment = 2
 
 # Define the target values for flow and depth
 flow_target = 0.019  # m3/s
