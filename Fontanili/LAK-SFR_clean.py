@@ -235,7 +235,8 @@ lake_cells = np.argwhere(lake_mask[0] > 0)  # Find lake cells
 delr = mf.dis.delr.array  # 1D array of column widths
 delc = mf.dis.delc.array  # 1D array of row heights
 
-
+#%%
+#Attempt to load the lak package in a different way (did not work)
 import flopy
 m = flopy.modflow.Modflow()
 
@@ -243,6 +244,7 @@ m = flopy.modflow.Modflow()
 # external dictionary needed!!!
 # https://flopy.readthedocs.io/en/3.3.5/_modules/flopy/modflow/mflak.html#ModflowLak.load
 
+#%%
 # Define fixed parameters used to calculate the lakebed conductance
 lakebed_thickness = 0.5  
 cell_area = 9  # Shape: (nrow, ncol)
