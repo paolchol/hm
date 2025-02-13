@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import plotly.express as px
 from plotly.offline import plot
@@ -18,8 +19,14 @@ def compute_head_cont(files, ref, saveindf = False, waterlevel = False):
                     df = pd.read_excel(file)
                     df['prof_diver'] = row[1].prof_diver
                     df['quota_ref'] = row[1].quota_ref
-                    df['soggiacenza'] = df.WaterLevel
-                    df['quota_falda'] = df.quota_ref - df.soggiacenza
+                    if row[1].prof_diver != 999:
+                        df['soggiacenza'] = df.WaterLevel
+                        df['quota_falda'] = df.quota_ref - df.soggiacenza
+                        df['colonna_h2o'] = df.prof_diver - df.soggiacenza
+                    else:
+                        df['soggiacenza'] = np.nan
+                        df['quota_falda'] = df.quota_ref + df.soggiacenza
+                        df['colonna_h2o'] = df.WaterLevel
         else:
             for file in files:
                 if row[1].id_punto in file:
@@ -29,9 +36,10 @@ def compute_head_cont(files, ref, saveindf = False, waterlevel = False):
                     df['soggiacenza'] = df.prof_diver - df.WaterLevel
                     df['quota_falda'] = df.quota_ref - df.soggiacenza
         if saveindf:
-            bigdf = pd.concat([bigdf, df.loc[:, ['MonitoringPoint', 'TimeStamp', 'Temperature', 'quota_falda']]])
+            # bigdf = pd.concat([bigdf, df.loc[:, ['MonitoringPoint', 'TimeStamp', 'Temperature', 'quota_falda']]])
+            bigdf = pd.concat([bigdf, df])
     if saveindf:
-        bigdf.columns = ['MonitoringPoint', 'TimeStamp', 'Temperature', 'quota_falda']
+        # bigdf.columns = ['MonitoringPoint', 'TimeStamp', 'Temperature', 'quota_falda']
         bigdf.reset_index(inplace=True, drop=True)
         return bigdf
     
