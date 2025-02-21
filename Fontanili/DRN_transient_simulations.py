@@ -1,7 +1,7 @@
 #%% Setup
 
 # Import necessary packages
-import datetime
+from datetime import datetime
 import flopy
 import flopy.utils.binaryfile as bf
 import numpy as np
@@ -13,7 +13,7 @@ import pickle
 
 # Define needed paths and model name
 cwd = os.getcwd()   # Where this file is saved
-model_ws = [os.path.join(cwd, 'RUN0_15P_FONT'), os.path.join(cwd, 'RUN0_15P_FONT')]
+model_ws = [os.path.join(cwd, 'RUN0_15P_FONT'), os.path.join(cwd, 'WIRR_15P_FONT')]
 model_name = ['RUN0_15P_FONT', 'WIRR_15P_FONT']
 
 # Load and define DRN characteristics
@@ -42,7 +42,8 @@ kdfout = pd.DataFrame()
 for i in kdf.keys():
     kdfout[f'M{i+1}'] = kdf[i]
 kdfout.insert(0, 'reach', drn.reach)
-kdfout.to_csv(os.path.join(cwd, f'k_realizations_{datetime.today().strftime('%y%m%d')}.csv'))
+kversion = datetime.today().strftime('%y%m%d_%H%M%S')
+kdfout.to_csv(os.path.join(cwd, f'k_realizations_{kversion}.csv'), index = False)
 
 #%% Set information on the transient model
 
@@ -57,20 +58,21 @@ ts_hds = 5
 
 #%% LOOP
 
-start = datetime.datetime.now()
+start = datetime.now()
 for mn, mws in zip(model_name, model_ws): # Loop over different models
     for ki in range(0,number_realiz): # Loop over different k realizations
+        print(f'Executing simulation {ki} for model {mn}')
         # Extract ith k realization and write it in the DRN file
         k = kdf[ki]
-        drn.conductance = round((k*lenght*width)/thickness, 5)
+        drn.conductance = np.round((k*lenght*width)/thickness, 5)
         stress_period_data = {}
         for sp in range(0, n_sp):
             stress_period_data[sp] = drn.iloc[:,:-1].to_numpy().tolist()
 
-        m = flopy.modflow.Modflow(model_name, model_ws = model_ws, version='mf2k')
+        m = flopy.modflow.Modflow(mn, model_ws = mws, version='mf2k')
         mdrn = flopy.modflow.ModflowDrn(m, stress_period_data=stress_period_data)
         mdrn.ipakcb = 50
-        mdrn.filenames = os.path.join(model_ws, f'{model_name}.drn')
+        mdrn.filenames = os.path.join(mws, f'{mn}.drn')
         mdrn.write_file(check = False)
 
         # Run the model
@@ -97,6 +99,7 @@ for mn, mws in zip(model_name, model_ws): # Loop over different models
 
         # Extract the DRN flux for all drains at all timesteps
         saveflux = drn.loc[:,['r','c','reach']].copy()
+        sps, tss = [], []
         for s in range(0, n_sp):
             for t in range(0, n_ts):
                 if s == 0 and t > 0: # stress period 1 has only 1 time step
@@ -107,8 +110,12 @@ for mn, mws in zip(model_name, model_ws): # Loop over different models
                     for r, c in zip(saveflux.r, saveflux.c):
                         flux.append(drains[0][0][r][c]) #first 0: access the array, second: first layer
                     saveflux[f'sp{s+1}-ts{t+1}'] = flux
+                    sps.append(s+1)
+                    tss.append(t+1)
         saveflux.drop(columns=['r','c'], inplace = True)
         saveflux = saveflux.pivot_table(columns='reach')
+        saveflux['sp'] = sps
+        saveflux['ts'] = tss
         
         # Initialize the hds 3d save file at the first iteration
         if ki == 0:
@@ -123,14 +130,15 @@ for mn, mws in zip(model_name, model_ws): # Loop over different models
 
     # Save the 3d arrays
     print(mn, f': {number_realiz} runs completed')
-    with open(os.path.join(mws, f'{mn}_hds3d.pickle'), 'wb') as f:
+    with open(os.path.join(mws, f'{mn}_hds3d_{kversion}.pickle'), 'wb') as f:
         pickle.dump(hds3d, f, pickle.HIGHEST_PROTOCOL)
         print(f'3D hds data for SP {sp_hds} and TS {ts_hds} saved at: ',
-              os.path.join(mws, f'{mn}_hds3d.pickle'))
-    with open(os.path.join(mws, f'{mn}_drn3d.pickle'), 'wb') as f:
+              os.path.join(mws, f'{mn}_hds3d_{kversion}.pickle'))
+    with open(os.path.join(mws, f'{mn}_drn3d_{kversion}.pickle'), 'wb') as f:
         pickle.dump(drn3d, f, pickle.HIGHEST_PROTOCOL)
         print(f'3D drn flux data for all SP and TS saved at: ',
-              os.path.join(mws, f'{mn}_hds3d.pickle'))
-    end = datetime.datetime.now()
-    hours = ((end-start).seconds + round((end-start).microseconds*(10**-6),2))/(60*60)
+              os.path.join(mws, f'{mn}_drn3d_{kversion}.pickle'))
+    end = datetime.now()
+    hours = round(((end-start).seconds + (end-start).microseconds*(10**-6))/(60*60), 3)
     print('Elapsed time (h): ',  hours)
+    print('The k version is: ', kversion)

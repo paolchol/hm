@@ -129,7 +129,7 @@ for kt in k_dict['kt']:
     for ka in k_dict['ka']:
         drn_sp.loc[~cond, 'Conductanc'] = (ka*drn_sp.loc[~cond, 'Width']*drn_sp.loc[~cond, 'Length'])/drn_sp.loc[~cond, 'Thickness']
 
-        drn.conductance = round(drn_sp.Conductanc, 5)
+        drn.conductance = np.round(drn_sp.Conductanc, 5)
         # Modify the drn package' stress period data
         stress_period_data = {0: drn.iloc[:, :-1].to_numpy().tolist()} #remove node column, not needed nor supported by flopy's ModflowDrn class
         mf.drn.stress_period_data = stress_period_data
@@ -137,7 +137,7 @@ for kt in k_dict['kt']:
 
         success, buff = mf.run_model(silent=True) #False to test the code, then switch to True
         if not success:
-            raise Exception("MODFLOW did not terminate normally.")
+            raise Exception(f"MODFLOW did not terminate normally.\n {mn}, k realization: {ki}")
         
         # Get drain values from cbb output
         cbb = bf.CellBudgetFile(os.path.join(model_ws, f'{model_name}.cbb'))
