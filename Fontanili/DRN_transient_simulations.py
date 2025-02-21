@@ -61,7 +61,7 @@ ts_hds = 5
 start = datetime.now()
 for mn, mws in zip(model_name, model_ws): # Loop over different models
     for ki in range(0,number_realiz): # Loop over different k realizations
-        print(f'Executing simulation {ki} for model {mn}')
+        print(f'Executing simulation {ki+1} for model {mn}')
         # Extract ith k realization and write it in the DRN file
         k = kdf[ki]
         drn.conductance = np.round((k*lenght*width)/thickness, 5)
@@ -128,17 +128,25 @@ for mn, mws in zip(model_name, model_ws): # Loop over different models
         hf.close()
         cbb.close()
 
-    # Save the 3d arrays
+    # Print end of the single model runs
+    print('\n\n')
     print(mn, f': {number_realiz} runs completed')
+    hours = round(((datetime.now()-start).seconds + (datetime.now()-start).microseconds*(10**-6))/(60*60), 3)
+    print('Elapsed time (h): ',  hours, '\n')
+    
+    # Save the 3d arrays
     with open(os.path.join(mws, f'{mn}_hds3d_{kversion}.pickle'), 'wb') as f:
         pickle.dump(hds3d, f, pickle.HIGHEST_PROTOCOL)
         print(f'3D hds data for SP {sp_hds} and TS {ts_hds} saved at: ',
               os.path.join(mws, f'{mn}_hds3d_{kversion}.pickle'))
+    
     with open(os.path.join(mws, f'{mn}_drn3d_{kversion}.pickle'), 'wb') as f:
         pickle.dump(drn3d, f, pickle.HIGHEST_PROTOCOL)
         print(f'3D drn flux data for all SP and TS saved at: ',
               os.path.join(mws, f'{mn}_drn3d_{kversion}.pickle'))
-    end = datetime.now()
-    hours = round(((end-start).seconds + (end-start).microseconds*(10**-6))/(60*60), 3)
-    print('Elapsed time (h): ',  hours)
-    print('The k version is: ', kversion)
+    
+# Print final messages
+end = datetime.now()
+hours = round(((end-start).seconds + (end-start).microseconds*(10**-6))/(60*60), 3)
+print('Elapsed time (h): ',  hours)
+print('The k version is: ', kversion)
