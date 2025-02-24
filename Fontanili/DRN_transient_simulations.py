@@ -8,6 +8,7 @@ import numpy as np
 import os
 import pandas as pd
 import pickle
+import re
 
 #%% Define paths and load DRN characteristics
 
@@ -99,7 +100,6 @@ for mn, mws in zip(model_name, model_ws): # Loop over different models
 
         # Extract the DRN flux for all drains at all timesteps
         saveflux = drn.loc[:,['r','c','reach']].copy()
-        sps, tss = [], []
         for s in range(0, n_sp):
             for t in range(0, n_ts):
                 if s == 0 and t > 0: # stress period 1 has only 1 time step
@@ -110,12 +110,11 @@ for mn, mws in zip(model_name, model_ws): # Loop over different models
                     for r, c in zip(saveflux.r, saveflux.c):
                         flux.append(drains[0][0][r][c]) #first 0: access the array, second: first layer
                     saveflux[f'sp{s+1}-ts{t+1}'] = flux
-                    sps.append(s+1)
-                    tss.append(t+1)
         saveflux.drop(columns=['r','c'], inplace = True)
         saveflux = saveflux.pivot_table(columns='reach')
-        saveflux['sp'] = sps
-        saveflux['ts'] = tss
+        saveflux['sp'] = [int(re.sub("[^0-9]", "",idx.split('-')[0])) for idx in saveflux.index]
+        saveflux['ts'] = [int(re.sub("[^0-9]", "",idx.split('-')[1])) for idx in saveflux.index]
+        saveflux = saveflux.sort_values(['sp','ts']).reset_index(drop=True)
         
         # Initialize the hds 3d save file at the first iteration
         if ki == 0:
