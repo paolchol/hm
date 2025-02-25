@@ -99,7 +99,7 @@ for mn, mws in zip(model_name, model_ws): # Loop over different models
         cbb = bf.CellBudgetFile(os.path.join(mws, f'{mn}.cbb'))
 
         # Extract the DRN flux for all drains at all timesteps
-        saveflux = drn.loc[:,['r','c','reach']].copy()
+        sps, tss, tsave = [], [], pd.DataFrame()
         for s in range(0, n_sp):
             for t in range(0, n_ts):
                 if s == 0 and t > 0: # stress period 1 has only 1 time step
@@ -107,21 +107,19 @@ for mn, mws in zip(model_name, model_ws): # Loop over different models
                 else:
                     drains = cbb.get_data(kstpkper = (t, s), text = 'DRAIN')
                     flux = []
-                    for r, c in zip(saveflux.r, saveflux.c):
+                    for r, c in zip(drn.r, drn.c):
                         flux.append(drains[0][0][r][c]) #first 0: access the array, second: first layer
-                    saveflux[f'sp{s+1}-ts{t+1}'] = flux
-        saveflux.drop(columns=['r','c'], inplace = True)
-        saveflux = saveflux.pivot_table(columns='reach')
-        saveflux['sp'] = [int(re.sub("[^0-9]", "",idx.split('-')[0])) for idx in saveflux.index]
-        saveflux['ts'] = [int(re.sub("[^0-9]", "",idx.split('-')[1])) for idx in saveflux.index]
-        saveflux = saveflux.sort_values(['sp','ts']).reset_index(drop=True)
+                    tsave = pd.concat([tsave, pd.DataFrame(flux).transpose()], axis = 0)
+                    sps.append(s+1)
+                    tss.append(t+1)
+        tsave['sp'], tsave['ts'] = sps, tss
         
         # Initialize the hds 3d save file at the first iteration
         if ki == 0:
-            drn3d = np.ndarray((saveflux.shape[0], saveflux.shape[1], number_realiz))
-
+            drn3d = np.ndarray((tsave.shape[0], tsave.shape[1], number_realiz))
+        
         # Save the results in the 3d array
-        drn3d[:,:,ki] = saveflux
+        drn3d[:,:,ki] = tsave
 
         # Close the .hds and .cbb files
         hf.close()
